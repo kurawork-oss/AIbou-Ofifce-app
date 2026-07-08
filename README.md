@@ -7,7 +7,7 @@ AI社員が営業・事務・マーケティングを自律的に回すバーチ
 
 | モード | 内容 |
 |---|---|
-| 🏢 **オフィス** | 社員が働くオフィスをリアルタイム表示。部署ゾーン・会議室・休憩スペース(仕事がなければゲームOK)・社内タイムライン |
+| 🏢 **オフィス** | **3Dオフィス**(ちびキャラのAI社員がデスク・会議室・休憩スペースを歩き回る/カメラは回転・ズーム自由)+2Dマップ切替。社内タイムライン付き |
 | 📥 **確認事項** | AI社員からの申請ボックス。社員追加提案・ツール利用申請・経費申請を許可/未許可で処理 |
 | 👥 **社員管理** | 名前・役職・部署・現在のステータス・Googleメールアドレス・パスワードの一覧管理(インライン編集可) |
 
@@ -38,28 +38,48 @@ npm run dev   # http://localhost:3000
 
 会社の状態はブラウザのlocalStorageに保存されます(「会社をリセット」で初期化)。
 
-### Claudeによる議事録生成(任意)
+### LLMによる議事録生成(任意)
 
-`ANTHROPIC_API_KEY` を設定すると、定例MTGの議事録を現在のKPIに基づいてClaudeがリアルに生成します。未設定でもテンプレート議事録で動作します。
+定例MTGの議事録を現在のKPIに基づいてLLMが生成します。優先順位は **Gemini(無料枠あり)→ Claude → テンプレート** で、キー未設定でもテンプレートで完全動作します。
 
 ```bash
-# .env.local
-ANTHROPIC_API_KEY=sk-ant-...
+# .env.local(.env.example 参照)
+GEMINI_API_KEY=AIza...        # Google AI Studio・無料枠あり
+ANTHROPIC_API_KEY=sk-ant-...  # フォールバック(従量課金)
 ```
+
+### Supabase 記憶保管庫(任意)
+
+1. Supabaseで無料プロジェクト作成 → SQL Editorで `supabase/schema.sql` を実行
+2. `.env.local` に `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定
+
+有効になると:
+- 各AI社員の活動が**Googleメールアドレスに紐づく記憶保管庫**(`employee_memories`)へ蓄積
+- 会社スナップショット(社員・KPI・議事録)が `company_state` へ定期保存
+- ヘッダーに「☁️ Supabase同期中」バッジが表示
+
+## Vercelで公開
+
+[DEPLOY.md](./DEPLOY.md) を参照(GitHub連携で数分・push毎に自動デプロイ)。
 
 ## ロードマップ
 
-- [ ] Supabase連携:AI社員ごとのGoogleアカウントに紐づく記憶保管庫(メモリ)
+- [x] 3Dオフィス(react-three-fiber)
+- [x] Supabase記憶保管庫(活動ログ・スナップショット同期)
+- [x] Gemini / Claude マルチプロバイダ議事録生成
+- [ ] 記憶保管庫を業務に活用(過去の記憶を読んで提案・リストの質を上げる)
 - [ ] Google Workspace連携:スプレッドシート(営業リスト)・ドキュメント(日報)・スライドの実生成
 - [ ] Gmail / コールAPI連携:実際のメール送受信・架電による本物のアポどり
 - [ ] X / note / YouTube API連携:マーケの無料発信を実投稿に
-- [ ] 全社員の頭脳をClaude API化:業務判断・MTG・申請文をすべてリアルAIで駆動
+- [ ] 全社員の頭脳をLLM化:業務判断・MTG・申請文をすべてリアルAIで駆動
 
 ## 技術構成
 
 - Next.js (App Router) + TypeScript + Tailwind CSS
+- three.js + react-three-fiber + drei(3Dオフィス)
 - zustand(状態管理・localStorage永続化)
-- Anthropic TypeScript SDK(議事録生成・任意)
+- Gemini API(REST)/ Anthropic TypeScript SDK(議事録生成・任意)
+- Supabase(記憶保管庫・任意)
 
 ## ⚠️ パスワードの取り扱い
 

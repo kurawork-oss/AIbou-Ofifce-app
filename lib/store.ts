@@ -21,6 +21,9 @@ import {
   TOOL_REQUESTS,
   type TaskTemplate,
 } from "./data";
+import { saveCompanySnapshot, syncActivityDiff } from "./sync";
+
+const SNAPSHOT_INTERVAL = 20; // このtick数ごとにSupabaseへスナップショット保存
 
 const MEETING_INTERVAL = 60; // このtick数ごとに定例MTG
 const MEETING_DURATION = 6;
@@ -221,7 +224,7 @@ async function enhanceMinutes(
       minutes?: string[];
       decisions?: string[];
     };
-    if (data.source !== "claude" || !data.minutes || !data.decisions) return;
+    if (data.source === "template" || !data.minutes || !data.decisions) return;
     useCompanyStore.setState((s) => ({
       meetings: s.meetings.map((m) =>
         m.id === meetingId
@@ -528,6 +531,18 @@ export const useCompanyStore = create<CompanyState>()(
           usedExpenseRequests,
           proposedHires,
         });
+
+        // Supabaseが設定されていれば記憶保管庫へ同期(fire-and-forget)
+        syncActivityDiff(s.activity, activity, employees);
+        if (tickCount % SNAPSHOT_INTERVAL === 0) {
+          saveCompanySnapshot({
+            employees,
+            approvals,
+            meetings: meetings.slice(0, 20),
+            kpi,
+            tickCount,
+          });
+        }
       },
 
       decideApproval: (id, approved, account) => {
@@ -586,6 +601,7 @@ export const useCompanyStore = create<CompanyState>()(
         }
 
         set({ approvals, employees, activity });
+        syncActivityDiff(s.activity, activity, employees);
       },
 
       updateEmployee: (id, patch) => {

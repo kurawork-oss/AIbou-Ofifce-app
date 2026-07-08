@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useCompanyStore } from "@/lib/store";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import OfficeView from "@/components/OfficeView";
 import ApprovalBox from "@/components/ApprovalBox";
 import EmployeeAdmin from "@/components/EmployeeAdmin";
@@ -81,6 +82,20 @@ export default function Home() {
               AI社員だけで回るバーチャルカンパニー — あなたは代表として承認するだけ
             </p>
           </div>
+          <span
+            className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
+              isSupabaseConfigured()
+                ? "bg-emerald-100 text-emerald-700"
+                : "bg-slate-200 text-slate-500"
+            }`}
+            title={
+              isSupabaseConfigured()
+                ? "社員の記憶保管庫をSupabaseへ同期しています"
+                : "NEXT_PUBLIC_SUPABASE_URL / ANON_KEY を設定すると記憶保管庫が有効になります"
+            }
+          >
+            {isSupabaseConfigured() ? "☁️ Supabase同期中" : "💾 ローカル保存"}
+          </span>
           <button
             onClick={() => {
               if (

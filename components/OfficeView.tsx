@@ -1,9 +1,21 @@
 "use client";
 
+import { useState } from "react";
+import dynamic from "next/dynamic";
 import { useCompanyStore } from "@/lib/store";
 import { DEPARTMENTS } from "@/lib/data";
 import type { DepartmentId, Employee } from "@/lib/types";
 import EmployeeAvatar from "./EmployeeAvatar";
+
+// three.jsはクライアント専用なのでSSRを無効化して遅延読み込み
+const Office3D = dynamic(() => import("./Office3D"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[560px] w-full rounded-3xl ring-1 ring-slate-200 bg-slate-100 flex items-center justify-center text-sm text-slate-400">
+      3Dオフィスを準備中…
+    </div>
+  ),
+});
 
 function DeptZone({
   deptId,
@@ -164,22 +176,91 @@ function ActivityFeed() {
   );
 }
 
+function MeetingStatusPanel() {
+  const meetings = useCompanyStore((s) => s.meetings);
+  const startMeetingNow = useCompanyStore((s) => s.startMeetingNow);
+  const current = meetings.find((m) => m.status === "in_progress");
+  const lastDone = meetings.find((m) => m.status === "done");
+
+  return (
+    <div className="rounded-2xl bg-white p-3 ring-1 ring-slate-200 shadow-sm flex items-start gap-3 flex-wrap">
+      <div className="flex-1 min-w-[240px]">
+        {current ? (
+          <p className="text-xs font-semibold text-amber-700">
+            🤝 MTG中:{current.agenda}
+          </p>
+        ) : lastDone ? (
+          <div>
+            <p className="text-[11px] font-semibold text-slate-700 mb-1">
+              📝 直近の議事録:{lastDone.agenda}
+            </p>
+            <ul className="list-disc pl-4 space-y-0.5 text-[10px] text-slate-500">
+              {lastDone.decisions.slice(0, 3).map((d, i) => (
+                <li key={i}>{d}</li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-400">
+            定例MTGは自動開催されます。
+          </p>
+        )}
+      </div>
+      {!current && (
+        <button
+          onClick={startMeetingNow}
+          className="rounded-full bg-amber-500 px-3 py-1.5 text-[10px] font-bold text-white hover:bg-amber-600 transition shrink-0"
+        >
+          MTGを招集する
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function OfficeView() {
   const employees = useCompanyStore((s) => s.employees);
+  const [view, setView] = useState<"3d" | "2d">("3d");
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       {/* オフィスフロア */}
-      <div className="lg:col-span-2 rounded-3xl bg-gradient-to-b from-slate-50 to-slate-200/70 p-4 ring-1 ring-slate-200 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <DeptZone deptId="sales" employees={employees} />
-          <DeptZone deptId="admin" employees={employees} />
-          <DeptZone deptId="marketing" employees={employees} />
-          <div className="grid grid-rows-2 gap-4">
-            <MeetingRoom employees={employees} />
-            <BreakSpace employees={employees} />
+      <div className="lg:col-span-2 space-y-3">
+        <div className="flex justify-end">
+          <div className="flex gap-1 rounded-full bg-white p-1 ring-1 ring-slate-200 shadow-sm">
+            {(["3d", "2d"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`rounded-full px-3 py-1 text-[10px] font-bold transition ${
+                  view === v
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-500 hover:bg-slate-100"
+                }`}
+              >
+                {v === "3d" ? "🎥 3Dオフィス" : "🗺️ 2Dマップ"}
+              </button>
+            ))}
           </div>
         </div>
+        {view === "3d" ? (
+          <>
+            <Office3D />
+            <MeetingStatusPanel />
+          </>
+        ) : (
+          <div className="rounded-3xl bg-gradient-to-b from-slate-50 to-slate-200/70 p-4 ring-1 ring-slate-200 shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <DeptZone deptId="sales" employees={employees} />
+              <DeptZone deptId="admin" employees={employees} />
+              <DeptZone deptId="marketing" employees={employees} />
+              <div className="grid grid-rows-2 gap-4">
+                <MeetingRoom employees={employees} />
+                <BreakSpace employees={employees} />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       {/* タイムライン */}
       <ActivityFeed />
