@@ -4,14 +4,15 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useCompanyStore } from "@/lib/store";
 import { DEPARTMENTS } from "@/lib/data";
-import type { DepartmentId, Employee } from "@/lib/types";
+import type { DepartmentId, Employee, OfficeSelection } from "@/lib/types";
 import EmployeeAvatar from "./EmployeeAvatar";
+import OfficeInspector from "./OfficeInspector";
 
 // three.jsはクライアント専用なのでSSRを無効化して遅延読み込み
 const Office3D = dynamic(() => import("./Office3D"), {
   ssr: false,
   loading: () => (
-    <div className="h-[560px] w-full rounded-3xl ring-1 ring-slate-200 bg-slate-100 flex items-center justify-center text-sm text-slate-400">
+    <div className="h-[600px] w-full rounded-3xl ring-1 ring-slate-200 bg-slate-100 flex items-center justify-center text-sm text-slate-400">
       3Dオフィスを準備中…
     </div>
   ),
@@ -221,9 +222,12 @@ function MeetingStatusPanel() {
 export default function OfficeView() {
   const employees = useCompanyStore((s) => s.employees);
   const [view, setView] = useState<"3d" | "2d">("3d");
+  const [selection, setSelection] = useState<OfficeSelection | null>(null);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* クリックしたオブジェクトの詳細パネル */}
+      <OfficeInspector selection={selection} onClose={() => setSelection(null)} />
       {/* オフィスフロア */}
       <div className="lg:col-span-2 space-y-3">
         <div className="flex justify-end">
@@ -245,7 +249,7 @@ export default function OfficeView() {
         </div>
         {view === "3d" ? (
           <>
-            <Office3D />
+            <Office3D onSelect={setSelection} />
             <MeetingStatusPanel />
           </>
         ) : (

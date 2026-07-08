@@ -103,6 +103,27 @@ export interface MeetingMinutes {
   status: "in_progress" | "done";
 }
 
+// 3Dオフィス内でクリックできるオブジェクトの選択状態
+export type OfficeSelection =
+  | { kind: "shelf" } // 共有キャビネット(全社の成果物)
+  | { kind: "employee"; employeeId: string } // 個人デスク(本人の成果物)
+  | { kind: "whiteboard"; department: DepartmentId } // 部署の目標・進捗
+  | { kind: "meeting" }; // 会議室(議事録)
+
+// AI社員が業務で作成する成果物(スプレッドシート・ドキュメント等)
+export type ArtifactType = "spreadsheet" | "doc" | "note" | "report";
+
+export interface Artifact {
+  id: string;
+  type: ArtifactType;
+  title: string;
+  ownerId: string;
+  department: DepartmentId;
+  createdAt: number;
+  summary: string;
+  rows?: string[][]; // spreadsheetの場合の中身(先頭行はヘッダー)
+}
+
 export interface Kpi {
   insights: number; // マーケのリサーチ知見(未消費ストック)
   leadLists: number; // 事務が作った営業リスト(未消費ストック)

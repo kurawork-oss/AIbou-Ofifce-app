@@ -35,7 +35,7 @@ export interface TaskTemplate {
   statusLabel: string;
 }
 
-const COMPANY_NAMES = [
+export const COMPANY_NAMES = [
   "株式会社サンライズ物流",
   "ミライ製作所",
   "グリーンテック株式会社",
@@ -298,6 +298,23 @@ export const EXPENSE_REQUESTS = [
       "一次データに基づくリサーチ知見の質が上がり、営業提案の刺さりが良くなります。",
   },
 ];
+
+// 部署ごとの目標(ホワイトボードに表示)
+export const DEPT_GOALS: Record<
+  DepartmentId,
+  { label: string; target: number; kpiKey: "appointments" | "posts" | "inquiriesHandled" | "outreach" }[]
+> = {
+  sales: [
+    { label: "獲得アポ", target: 10, kpiKey: "appointments" },
+    { label: "架電・営業メール", target: 50, kpiKey: "outreach" },
+  ],
+  admin: [
+    { label: "問い合わせ対応", target: 30, kpiKey: "inquiriesHandled" },
+  ],
+  marketing: [
+    { label: "無料発信(X/note/YouTube)", target: 20, kpiKey: "posts" },
+  ],
+};
 
 export const MEETING_AGENDAS = [
   "週次売上MTG:リサーチ知見の共有と営業リストの方針決め",

@@ -5,12 +5,14 @@ import { persist } from "zustand/middleware";
 import type {
   ActivityEntry,
   ApprovalRequest,
+  Artifact,
   Employee,
   EmployeeTask,
   Kpi,
   MeetingMinutes,
 } from "./types";
 import {
+  COMPANY_NAMES,
   DEPARTMENTS,
   EXPENSE_REQUESTS,
   GAMES,
@@ -81,6 +83,7 @@ interface CompanyState {
   approvals: ApprovalRequest[];
   activity: ActivityEntry[];
   meetings: MeetingMinutes[];
+  artifacts: Artifact[];
   kpi: Kpi;
   tickCount: number;
   lastMeetingTick: number;
@@ -137,17 +140,69 @@ function nextTaskFor(emp: Employee, kpi: Kpi): TaskTemplate | null {
   return pick(templates);
 }
 
-// タスク完了時のKPI反映。戻り値はログ用メッセージ。
-function applyTaskEffect(emp: Employee, task: EmployeeTask, kpi: Kpi): string {
+function stamp(): string {
+  const d = new Date();
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function makeArtifact(
+  emp: Employee,
+  type: Artifact["type"],
+  title: string,
+  summary: string,
+  rows?: string[][]
+): Artifact {
+  return {
+    id: uid(),
+    type,
+    title,
+    ownerId: emp.id,
+    department: emp.department,
+    createdAt: Date.now(),
+    summary,
+    rows,
+  };
+}
+
+// タスク完了時のKPI反映。ログ用メッセージと、生成された成果物を返す。
+function applyTaskEffect(
+  emp: Employee,
+  task: EmployeeTask,
+  kpi: Kpi
+): { message: string; artifact?: Artifact } {
   switch (task.kind) {
     case "research":
       kpi.insights += 1;
-      return `📚 ${task.detail} を完了。リサーチ知見が貯まりました(知見: ${kpi.insights})`;
+      return {
+        message: `📚 ${task.detail} を完了。リサーチ知見が貯まりました(知見: ${kpi.insights})`,
+        artifact: makeArtifact(
+          emp,
+          "doc",
+          `リサーチメモ ${stamp()}`,
+          `${task.detail}。ターゲット業界の課題と需要テーマを整理し、営業リスト作成と提案改善に使える知見としてまとめた。`
+        ),
+      };
     case "post":
       kpi.posts += 1;
-      return `📣 ${task.detail} を完了。無料発信 累計${kpi.posts}件`;
+      return {
+        message: `📣 ${task.detail} を完了。無料発信 累計${kpi.posts}件`,
+        artifact: makeArtifact(
+          emp,
+          "note",
+          `発信ドラフト ${stamp()}`,
+          `${task.detail}。反応データを見てテーマを調整予定。`
+        ),
+      };
     case "adPlan":
-      return `🗓️ ${task.detail} を完了`;
+      return {
+        message: `🗓️ ${task.detail} を完了`,
+        artifact: makeArtifact(
+          emp,
+          "doc",
+          `発信企画メモ ${stamp()}`,
+          `${task.detail}。今週の発信チャネルと担当を整理。`
+        ),
+      };
     case "leadList": {
       let gained = 1;
       if (kpi.insights > 0) {
@@ -155,13 +210,34 @@ function applyTaskEffect(emp: Employee, task: EmployeeTask, kpi: Kpi): string {
         gained = 2;
       }
       kpi.leadLists += gained;
-      return `📋 ${task.detail} を完了。営業リスト +${gained}(在庫: ${kpi.leadLists})`;
+      const picks = [...COMPANY_NAMES].sort(() => Math.random() - 0.5).slice(0, 4);
+      const priorities = ["高", "中", "高", "低"];
+      return {
+        message: `📋 ${task.detail} を完了。営業リスト +${gained}(在庫: ${kpi.leadLists})`,
+        artifact: makeArtifact(
+          emp,
+          "spreadsheet",
+          `営業リスト ${stamp()}`,
+          `${task.detail}。リサーチ知見${gained === 2 ? "を反映した高精度" : "なしの標準"}リスト。`,
+          [
+            ["社名", "優先度", "状態", "メモ"],
+            ...picks.map((c, i) => [
+              c,
+              priorities[i],
+              "未接触",
+              i === 0 ? "ニーズ強め・最優先" : "リサーチ知見より抽出",
+            ]),
+          ]
+        ),
+      };
     }
     case "inquiry":
       kpi.inquiriesHandled += 1;
-      return `💬 ${task.detail} を完了(対応累計: ${kpi.inquiriesHandled})`;
+      return {
+        message: `💬 ${task.detail} を完了(対応累計: ${kpi.inquiriesHandled})`,
+      };
     case "mailSort":
-      return `🗂️ ${task.detail} を完了`;
+      return { message: `🗂️ ${task.detail} を完了` };
     case "call":
     case "salesMail": {
       if (kpi.leadLists > 0) kpi.leadLists -= 1;
@@ -169,17 +245,34 @@ function applyTaskEffect(emp: Employee, task: EmployeeTask, kpi: Kpi): string {
       const rate = Math.min(0.25 + kpi.strategies * 0.05, 0.6);
       if (Math.random() < rate) {
         kpi.appointments += 1;
-        return `🎉 ${task.detail} → アポ獲得!(累計アポ: ${kpi.appointments})`;
+        const company = task.detail.split("へ")[0];
+        return {
+          message: `🎉 ${task.detail} → アポ獲得!(累計アポ: ${kpi.appointments})`,
+          artifact: makeArtifact(
+            emp,
+            "report",
+            `アポ獲得報告:${company}`,
+            `${task.detail}の結果、商談アポを獲得。日程調整メモと先方の関心ポイントを記録。`
+          ),
+        };
       }
-      return `📞 ${task.detail} → 今回は見送り。次に活かします`;
+      return { message: `📞 ${task.detail} → 今回は見送り。次に活かします` };
     }
     case "proposal": {
       if (kpi.insights > 0) kpi.insights -= 1;
       kpi.strategies += 1;
-      return `✨ ${task.detail} を完了。提案の質が向上(戦略レベル: ${kpi.strategies})`;
+      return {
+        message: `✨ ${task.detail} を完了。提案の質が向上(戦略レベル: ${kpi.strategies})`,
+        artifact: makeArtifact(
+          emp,
+          "doc",
+          `提案資料 v${kpi.strategies} ${stamp()}`,
+          `${task.detail}。MTG決定事項とリサーチ知見を反映した最新版。`
+        ),
+      };
     }
     default:
-      return `✅ ${task.detail} を完了`;
+      return { message: `✅ ${task.detail} を完了` };
   }
 }
 
@@ -244,6 +337,7 @@ export const useCompanyStore = create<CompanyState>()(
       approvals: [],
       activity: [],
       meetings: [],
+      artifacts: [],
       kpi: { ...initialKpi },
       tickCount: 0,
       lastMeetingTick: 0,
@@ -262,6 +356,7 @@ export const useCompanyStore = create<CompanyState>()(
         const usedToolRequests = s.usedToolRequests.slice();
         const usedExpenseRequests = s.usedExpenseRequests.slice();
         const proposedHires = s.proposedHires.slice();
+        let artifacts = s.artifacts;
 
         let employees = s.employees.map((e) => ({ ...e }));
 
@@ -289,6 +384,17 @@ export const useCompanyStore = create<CompanyState>()(
               currentMeeting.status = "done";
               currentMeeting.endedAt = Date.now();
               kpi.strategies += 1;
+              if (chair) {
+                artifacts = [
+                  makeArtifact(
+                    chair,
+                    "report",
+                    `議事録:${currentMeeting.agenda}`,
+                    `決定事項: ${built.decisions.join(" / ")}`
+                  ),
+                  ...artifacts,
+                ].slice(0, 80);
+              }
               for (const p of participants) {
                 p.status = "working";
                 p.statusLabel = "MTG内容を反映中";
@@ -405,8 +511,11 @@ export const useCompanyStore = create<CompanyState>()(
           // タスク進行
           emp.currentTask.progress += 1;
           if (emp.currentTask.progress >= emp.currentTask.total) {
-            const msg = applyTaskEffect(emp, emp.currentTask, kpi);
-            activity = log(activity, emp.id, msg, "work");
+            const result = applyTaskEffect(emp, emp.currentTask, kpi);
+            activity = log(activity, emp.id, result.message, "work");
+            if (result.artifact) {
+              artifacts = [result.artifact, ...artifacts].slice(0, 80);
+            }
             emp.currentTask = null;
             emp.statusLabel = "次の業務を確認中";
           }
@@ -524,6 +633,7 @@ export const useCompanyStore = create<CompanyState>()(
           approvals,
           activity,
           meetings: meetings.slice(0, 20),
+          artifacts,
           kpi,
           tickCount,
           lastMeetingTick,
@@ -622,6 +732,7 @@ export const useCompanyStore = create<CompanyState>()(
           approvals: [],
           activity: [],
           meetings: [],
+          artifacts: [],
           kpi: { ...initialKpi },
           tickCount: 0,
           lastMeetingTick: 0,
@@ -633,7 +744,15 @@ export const useCompanyStore = create<CompanyState>()(
     }),
     {
       name: "aibou-office-v1",
+      version: 2,
       skipHydration: true,
+      migrate: (persisted, version) => {
+        const state = persisted as Partial<CompanyState>;
+        if (version < 2) {
+          state.artifacts = state.artifacts ?? [];
+        }
+        return state as CompanyState;
+      },
     }
   )
 );
