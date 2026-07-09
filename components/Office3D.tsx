@@ -3,6 +3,7 @@
 import { useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Html, OrbitControls, RoundedBox, SoftShadows } from "@react-three/drei";
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import { useCompanyStore } from "@/lib/store";
 import { DEPARTMENTS } from "@/lib/data";
@@ -1319,10 +1320,20 @@ function OfficeRoom() {
 // シーン本体
 // ================================================================
 
-function OfficeScene({ onSelect }: { onSelect: (sel: OfficeSelection) => void }) {
-  const employees = useCompanyStore((s) => s.employees);
+function OfficeScene({
+  onSelect,
+  employees,
+  controlsRef,
+}: {
+  onSelect: (sel: OfficeSelection) => void;
+  employees: Employee[];
+  controlsRef: React.RefObject<OrbitControlsImpl | null>;
+}) {
   const meetings = useCompanyStore((s) => s.meetings);
-  const currentMeeting = meetings.find((m) => m.status === "in_progress");
+  const divisionId = employees[0]?.divisionId;
+  const currentMeeting = meetings.find(
+    (m) => m.status === "in_progress" && m.divisionId === divisionId
+  );
   const participantIds = useMemo(
     () => currentMeeting?.participantIds ?? [],
     [currentMeeting]
@@ -1406,38 +1417,90 @@ function OfficeScene({ onSelect }: { onSelect: (sel: OfficeSelection) => void })
       })}
 
       <OrbitControls
-        target={[0, 0.4, 0]}
-        maxPolarAngle={Math.PI / 2.18}
+        ref={controlsRef}
+        target={[0, 0.6, 1]}
+        maxPolarAngle={Math.PI / 2.15}
         minDistance={4}
-        maxDistance={34}
+        maxDistance={30}
         enableDamping
-        dampingFactor={0.08}
+        dampingFactor={0.1}
+        zoomSpeed={0.9}
       />
     </>
   );
 }
 
+const DEFAULT_CAM: [number, number, number] = [1, 11, 15];
+const DEFAULT_TARGET: [number, number, number] = [0, 0.6, 1];
+
 export default function Office3D({
   onSelect,
+  employees,
 }: {
   onSelect: (sel: OfficeSelection) => void;
+  employees: Employee[];
 }) {
+  const controls = useRef<OrbitControlsImpl>(null);
+
+  const zoom = (factor: number) => {
+    const c = controls.current;
+    if (!c) return;
+    const cam = c.object;
+    const dir = cam.position.clone().sub(c.target);
+    const nextLen = THREE.MathUtils.clamp(dir.length() * factor, c.minDistance, c.maxDistance);
+    cam.position.copy(c.target.clone().add(dir.setLength(nextLen)));
+    c.update();
+  };
+  const resetView = () => {
+    const c = controls.current;
+    if (!c) return;
+    c.object.position.set(...DEFAULT_CAM);
+    c.target.set(...DEFAULT_TARGET);
+    c.update();
+  };
+
   return (
     <div className="relative h-[clamp(340px,56vh,560px)] w-full overflow-hidden rounded-3xl ring-1 ring-white/30 shadow-lg bg-gradient-to-b from-sky-100 to-orange-50">
       <Canvas
         shadows
         dpr={[1, 2]}
-        camera={{ position: [1, 13, 16.5], fov: 45 }}
+        camera={{ position: DEFAULT_CAM, fov: 45 }}
         gl={{ antialias: true }}
         onCreated={({ gl }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = 1.12;
         }}
       >
-        <OfficeScene onSelect={onSelect} />
+        <OfficeScene onSelect={onSelect} employees={employees} controlsRef={controls} />
       </Canvas>
+
+      {/* カメラ操作ボタン */}
+      <div className="absolute right-3 top-3 flex flex-col gap-1.5">
+        <button
+          onClick={() => zoom(0.8)}
+          className="h-8 w-8 rounded-full bg-white/95 text-slate-700 text-base font-bold shadow ring-1 ring-slate-200 hover:bg-white transition"
+          title="拡大"
+        >
+          ＋
+        </button>
+        <button
+          onClick={() => zoom(1.25)}
+          className="h-8 w-8 rounded-full bg-white/95 text-slate-700 text-base font-bold shadow ring-1 ring-slate-200 hover:bg-white transition"
+          title="縮小"
+        >
+          －
+        </button>
+        <button
+          onClick={resetView}
+          className="h-8 w-8 rounded-full bg-white/95 text-sm shadow ring-1 ring-slate-200 hover:bg-white transition"
+          title="視点をリセット"
+        >
+          🎯
+        </button>
+      </div>
+
       <div className="absolute bottom-3 left-3 rounded-full bg-white/90 px-3 py-1.5 text-[10px] text-slate-500 shadow pointer-events-none">
-        💡 ロボット・デスク・ホワイトボード・キャビネット・会議室モニターをクリックで詳細
+        💡 社員・デスク・ホワイトボード・キャビネット・会議室をクリックで詳細 ・ ドラッグで回転 ・ ホイールで拡大
       </div>
     </div>
   );

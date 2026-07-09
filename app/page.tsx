@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useCompanyStore } from "@/lib/store";
+import { aggregateKpi, useCompanyStore } from "@/lib/store";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import OfficeView from "@/components/OfficeView";
 import ApprovalBox from "@/components/ApprovalBox";
@@ -13,7 +13,8 @@ const TICK_MS = 3000;
 type Mode = "office" | "approval" | "admin";
 
 function KpiBar() {
-  const kpi = useCompanyStore((s) => s.kpi);
+  const kpis = useCompanyStore((s) => s.kpis);
+  const kpi = aggregateKpi(kpis);
   const items = [
     { label: "獲得アポ", value: kpi.appointments, icon: "🎯" },
     { label: "架電・営業メール", value: kpi.outreach, icon: "📞" },

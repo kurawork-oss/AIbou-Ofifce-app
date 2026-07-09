@@ -44,6 +44,7 @@ export interface Employee {
   name: string;
   role: string; // 役職
   department: DepartmentId;
+  divisionId: string; // 所属事業部(商材)= ProductLine.id
   avatar?: "robot" | "human"; // 3Dアバターの種類(未設定はハッシュで自動)
   status: EmployeeStatus;
   statusLabel: string; // 「架電中」「リサーチ中」「ゲーム中」など
@@ -67,6 +68,7 @@ export interface HirePayload {
   name: string;
   role: string;
   department: DepartmentId;
+  divisionId: string; // 追加先の事業部
   avatar?: "robot" | "human";
   emoji: string;
   color: string;
@@ -112,6 +114,7 @@ export interface ActivityEntry {
 export interface MeetingMinutes {
   id: string;
   title: string;
+  divisionId: string; // 開催した事業部
   participantIds: string[];
   startedAt: number;
   endedAt: number | null;
@@ -137,6 +140,7 @@ export interface Artifact {
   title: string;
   ownerId: string;
   department: DepartmentId;
+  divisionId: string; // 作成した事業部
   createdAt: number;
   summary: string;
   rows?: string[][]; // spreadsheetの場合の中身(先頭行はヘッダー)

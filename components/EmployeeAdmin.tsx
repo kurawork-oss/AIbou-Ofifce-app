@@ -85,23 +85,56 @@ const STATUS_STYLE: Record<Employee["status"], string> = {
 };
 
 export default function EmployeeAdmin() {
-  const employees = useCompanyStore((s) => s.employees);
+  const allEmployees = useCompanyStore((s) => s.employees);
+  const products = useCompanyStore((s) => s.company.products);
+  const [divFilter, setDivFilter] = useState<string>("all");
+  const employees =
+    divFilter === "all"
+      ? allEmployees
+      : allEmployees.filter((e) => e.divisionId === divFilter);
+  const divName = (id: string) => products.find((p) => p.id === id)?.name ?? "—";
 
   return (
     <div className="max-w-5xl mx-auto">
       <div className="mb-3 flex items-center justify-between flex-wrap gap-2">
-        <h2 className="font-bold text-base text-slate-800">
+        <h2 className="font-bold text-base text-white drop-shadow">
           👥 AI社員一覧({employees.length}名)
         </h2>
-        <p className="text-[11px] text-slate-400">
-          ⚠️ パスワードはブラウザ内(ローカル)にのみ保存されます。実運用ではパスワード管理ツールの利用を推奨。
+        <p className="text-[11px] text-indigo-200/70">
+          ⚠️ パスワードはブラウザ内(ローカル)保存。実運用ではパスワード管理ツールを推奨。
         </p>
       </div>
-      <div className="overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-        <table className="w-full text-left text-xs min-w-[760px]">
+      {/* 事業部フィルタ */}
+      <div className="mb-3 flex gap-1 flex-wrap">
+        <button
+          onClick={() => setDivFilter("all")}
+          className={`rounded-full px-3 py-1 text-[11px] font-bold transition ${
+            divFilter === "all" ? "bg-slate-900 text-white" : "bg-white/90 text-slate-500"
+          }`}
+        >
+          全事業部 ({allEmployees.length})
+        </button>
+        {products.map((p) => {
+          const n = allEmployees.filter((e) => e.divisionId === p.id).length;
+          return (
+            <button
+              key={p.id}
+              onClick={() => setDivFilter(p.id)}
+              className={`rounded-full px-3 py-1 text-[11px] font-bold transition ${
+                divFilter === p.id ? "bg-slate-900 text-white" : "bg-white/90 text-slate-500"
+              }`}
+            >
+              {p.name} ({n})
+            </button>
+          );
+        })}
+      </div>
+      <div className="overflow-x-auto rounded-2xl bg-white shadow-lg ring-1 ring-white/40">
+        <table className="w-full text-left text-xs min-w-[860px]">
           <thead>
             <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wide text-slate-400">
               <th className="px-4 py-3">社員</th>
+              <th className="px-4 py-3">事業部</th>
               <th className="px-4 py-3">役職</th>
               <th className="px-4 py-3">部署</th>
               <th className="px-4 py-3">ステータス</th>
@@ -126,10 +159,17 @@ export default function EmployeeAdmin() {
                         {e.emoji}
                       </span>
                       <div>
-                        <p className="font-bold text-slate-800">{e.name}</p>
+                        <p className="font-bold text-slate-800">
+                          {e.avatar === "human" ? "🙂" : "🤖"} {e.name}
+                        </p>
                         <p className="text-[10px] text-slate-400">{e.bio}</p>
                       </div>
                     </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                      {divName(e.divisionId)}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-slate-600">{e.role}</td>
                   <td className="px-4 py-3">

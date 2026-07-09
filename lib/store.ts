@@ -11,6 +11,7 @@ import type {
   EmployeeTask,
   Kpi,
   MeetingMinutes,
+  ProductLine,
   SalesTargetType,
 } from "./types";
 import {
@@ -20,6 +21,7 @@ import {
   EXPENSE_REQUESTS,
   GAMES,
   HIRE_CANDIDATES,
+  makeDivisionTeam,
   MEETING_AGENDAS,
   PERSON_NAMES,
   SEED_EMPLOYEES,
@@ -57,13 +59,8 @@ function pickTargetName(target: SalesTargetType): string {
   return b2c ? `${pick(PERSON_NAMES)}様` : pick(COMPANY_NAMES);
 }
 
-function pickProduct(company: CompanyProfile) {
-  return pick(company.products.length > 0 ? company.products : DEFAULT_COMPANY.products);
-}
-
-// 会社設定(商材・営業対象)を反映してタスクを生成
-function makeTask(tpl: TaskTemplate, company: CompanyProfile): EmployeeTask {
-  const product = pickProduct(company);
+// その事業部の商材・営業対象を反映してタスクを生成
+function makeTask(tpl: TaskTemplate, product: ProductLine): EmployeeTask {
   let detail = pick(tpl.details);
   if (tpl.kind === "call") {
     detail = `${pickTargetName(product.target)}へ架電・「${product.name}」のアポ打診`;
@@ -92,15 +89,40 @@ function seedEmployees(): Employee[] {
   }));
 }
 
-const initialKpi: Kpi = {
-  insights: 2,
-  leadLists: 1,
-  outreach: 0,
-  appointments: 0,
-  posts: 0,
-  inquiriesHandled: 0,
-  strategies: 0,
-};
+function freshKpi(): Kpi {
+  return {
+    insights: 2,
+    leadLists: 1,
+    outreach: 0,
+    appointments: 0,
+    posts: 0,
+    inquiriesHandled: 0,
+    strategies: 0,
+  };
+}
+
+// 全事業部のKPIを合算(会社全体のヘッダー表示用)
+export function aggregateKpi(kpis: Record<string, Kpi>): Kpi {
+  const total = {
+    insights: 0,
+    leadLists: 0,
+    outreach: 0,
+    appointments: 0,
+    posts: 0,
+    inquiriesHandled: 0,
+    strategies: 0,
+  };
+  for (const k of Object.values(kpis)) {
+    total.insights += k.insights;
+    total.leadLists += k.leadLists;
+    total.outreach += k.outreach;
+    total.appointments += k.appointments;
+    total.posts += k.posts;
+    total.inquiriesHandled += k.inquiriesHandled;
+    total.strategies += k.strategies;
+  }
+  return total;
+}
 
 interface CompanyState {
   company: CompanyProfile;
@@ -109,9 +131,9 @@ interface CompanyState {
   activity: ActivityEntry[];
   meetings: MeetingMinutes[];
   artifacts: Artifact[];
-  kpi: Kpi;
+  kpis: Record<string, Kpi>; // 事業部(商材)ごとのKPI
   tickCount: number;
-  lastMeetingTick: number;
+  lastMeetingTicks: Record<string, number>; // 事業部ごとのMTGタイマー
   usedToolRequests: string[];
   usedExpenseRequests: string[];
   proposedHires: string[]; // 提案済み候補者名
@@ -123,7 +145,7 @@ interface CompanyState {
     account?: { email: string; password: string }
   ) => void;
   updateEmployee: (id: string, patch: Partial<Employee>) => void;
-  startMeetingNow: () => void;
+  startMeetingNow: (divisionId?: string) => void;
   updateCompany: (profile: CompanyProfile) => void;
   resetCompany: () => void;
 }
@@ -184,6 +206,7 @@ function makeArtifact(
     title,
     ownerId: emp.id,
     department: emp.department,
+    divisionId: emp.divisionId,
     createdAt: Date.now(),
     summary,
     rows,
@@ -195,11 +218,8 @@ function applyTaskEffect(
   emp: Employee,
   task: EmployeeTask,
   kpi: Kpi,
-  company: CompanyProfile
+  product: ProductLine
 ): { message: string; artifact?: Artifact } {
-  // タスク詳細に含まれる商材を特定(なければ先頭の商材)
-  const products = company.products.length > 0 ? company.products : DEFAULT_COMPANY.products;
-  const product = products.find((p) => task.detail.includes(p.name)) ?? products[0];
   switch (task.kind) {
     case "research":
       kpi.insights += 1;
@@ -372,138 +392,148 @@ export const useCompanyStore = create<CompanyState>()(
       activity: [],
       meetings: [],
       artifacts: [],
-      kpi: { ...initialKpi },
+      kpis: { "prod-default": freshKpi() },
       tickCount: 0,
-      lastMeetingTick: 0,
+      lastMeetingTicks: {},
       usedToolRequests: [],
       usedExpenseRequests: [],
       proposedHires: [],
 
       tick: () => {
         const s = get();
-        const kpi: Kpi = { ...s.kpi };
+        const kpis: Record<string, Kpi> = {};
+        for (const [k, v] of Object.entries(s.kpis)) kpis[k] = { ...v };
         let activity = s.activity;
         let approvals = s.approvals.slice();
         const meetings = s.meetings.slice();
         const tickCount = s.tickCount + 1;
-        let lastMeetingTick = s.lastMeetingTick;
+        const lastMeetingTicks = { ...s.lastMeetingTicks };
         const usedToolRequests = s.usedToolRequests.slice();
         const usedExpenseRequests = s.usedExpenseRequests.slice();
         const proposedHires = s.proposedHires.slice();
         let artifacts = s.artifacts;
         const company = s.company ?? DEFAULT_COMPANY;
 
+        // 商材=事業部。各事業部のKPIと商材を用意
+        const products = company.products.length > 0 ? company.products : DEFAULT_COMPANY.products;
+        const productById = new Map(products.map((p) => [p.id, p]));
+        for (const p of products) if (!kpis[p.id]) kpis[p.id] = freshKpi();
+        const kpiOf = (divId: string): Kpi => {
+          if (!kpis[divId]) kpis[divId] = freshKpi();
+          return kpis[divId];
+        };
+        const productOf = (divId: string): ProductLine =>
+          productById.get(divId) ?? products[0];
+
         let employees = s.employees.map((e) => ({ ...e }));
 
-        // --- 進行中MTGの処理 ---
-        const currentMeeting = meetings.find((m) => m.status === "in_progress");
-        if (currentMeeting) {
-          // MTGの進行は司会(先頭参加者)のタスクprogressで管理する
-          const chair = employees.find(
-            (e) => e.id === currentMeeting.participantIds[0]
+        // --- 進行中MTGの処理(事業部ごとに同時進行しうる) ---
+        for (const meeting of meetings.filter((m) => m.status === "in_progress")) {
+          const chair = employees.find((e) => e.id === meeting.participantIds[0]);
+          if (!chair?.currentTask || chair.currentTask.kind !== "mtg") continue;
+          chair.currentTask.progress += 1;
+          if (chair.currentTask.progress < chair.currentTask.total) continue;
+
+          const dKpi = kpiOf(meeting.divisionId);
+          const participants = employees.filter((e) =>
+            meeting.participantIds.includes(e.id)
           );
-          if (chair?.currentTask && chair.currentTask.kind === "mtg") {
-            chair.currentTask.progress += 1;
-            if (chair.currentTask.progress >= chair.currentTask.total) {
-              // MTG終了:議事録確定、参加者を解放
-              const participants = employees.filter((e) =>
-                currentMeeting.participantIds.includes(e.id)
-              );
-              const built = buildMeetingMinutes(
-                participants,
-                kpi,
-                currentMeeting.agenda
-              );
-              currentMeeting.minutes = built.minutes;
-              currentMeeting.decisions = built.decisions;
-              currentMeeting.status = "done";
-              currentMeeting.endedAt = Date.now();
-              kpi.strategies += 1;
-              if (chair) {
-                artifacts = [
-                  makeArtifact(
-                    chair,
-                    "report",
-                    `議事録:${currentMeeting.agenda}`,
-                    `決定事項: ${built.decisions.join(" / ")}`
-                  ),
-                  ...artifacts,
-                ].slice(0, 80);
-              }
-              for (const p of participants) {
-                p.status = "working";
-                p.statusLabel = "MTG内容を反映中";
-                p.currentTask = null;
-              }
-              activity = log(
-                activity,
-                currentMeeting.participantIds[0],
-                `🤝 「${currentMeeting.agenda}」が終了。決定事項${built.decisions.length}件を各部署へ展開(戦略レベル: ${kpi.strategies})`,
-                "meeting"
-              );
-              // ANTHROPIC_API_KEY があればClaudeがリアルな議事録に差し替える
-              void enhanceMinutes(
-                currentMeeting.id,
-                currentMeeting.agenda,
-                participants.map((p) => ({
-                  name: p.name,
-                  role: p.role,
-                  department: DEPARTMENTS[p.department].name,
-                })),
-                { ...kpi }
-              );
-            }
+          const built = buildMeetingMinutes(participants, dKpi, meeting.agenda);
+          meeting.minutes = built.minutes;
+          meeting.decisions = built.decisions;
+          meeting.status = "done";
+          meeting.endedAt = Date.now();
+          dKpi.strategies += 1;
+          artifacts = [
+            makeArtifact(
+              chair,
+              "report",
+              `議事録:${meeting.agenda}`,
+              `決定事項: ${built.decisions.join(" / ")}`
+            ),
+            ...artifacts,
+          ].slice(0, 80);
+          for (const p of participants) {
+            p.status = "working";
+            p.statusLabel = "MTG内容を反映中";
+            p.currentTask = null;
           }
+          activity = log(
+            activity,
+            meeting.participantIds[0],
+            `🤝 「${meeting.agenda}」が終了。決定事項${built.decisions.length}件を展開(戦略Lv: ${dKpi.strategies})`,
+            "meeting"
+          );
+          void enhanceMinutes(
+            meeting.id,
+            meeting.agenda,
+            participants.map((p) => ({
+              name: p.name,
+              role: p.role,
+              department: DEPARTMENTS[p.department].name,
+            })),
+            { ...dKpi }
+          );
         }
 
-        // --- 定例MTGの開始 ---
-        if (!currentMeeting && tickCount - lastMeetingTick >= MEETING_INTERVAL) {
-          lastMeetingTick = tickCount;
-          const agenda = pick(MEETING_AGENDAS);
+        // --- 定例MTGの開始(事業部ごと) ---
+        for (const div of products) {
+          const hasActive = meetings.some(
+            (m) => m.status === "in_progress" && m.divisionId === div.id
+          );
+          const last = lastMeetingTicks[div.id] ?? 0;
+          if (hasActive || tickCount - last < MEETING_INTERVAL) continue;
+          const divEmployees = employees.filter((e) => e.divisionId === div.id);
+          if (divEmployees.length < 2) continue;
+
+          lastMeetingTicks[div.id] = tickCount;
+          const agenda = `【${div.name}】${pick(MEETING_AGENDAS)}`;
           const participantIds: string[] = [];
           for (const dept of ["marketing", "admin", "sales"] as const) {
-            const member = employees.find(
+            const member = divEmployees.find(
               (e) => e.department === dept && e.status !== "meeting"
             );
             if (member) participantIds.push(member.id);
           }
-          if (participantIds.length >= 2) {
-            const meeting: MeetingMinutes = {
-              id: uid(),
-              title: agenda,
-              participantIds,
-              startedAt: Date.now(),
-              endedAt: null,
-              agenda,
-              minutes: [],
-              decisions: [],
-              status: "in_progress",
+          if (participantIds.length < 2) continue;
+
+          meetings.unshift({
+            id: uid(),
+            title: agenda,
+            divisionId: div.id,
+            participantIds,
+            startedAt: Date.now(),
+            endedAt: null,
+            agenda,
+            minutes: [],
+            decisions: [],
+            status: "in_progress",
+          });
+          for (const id of participantIds) {
+            const e = employees.find((x) => x.id === id)!;
+            e.status = "meeting";
+            e.statusLabel = "MTG中";
+            e.currentTask = {
+              kind: "mtg",
+              label: "定例MTG",
+              detail: agenda,
+              progress: 0,
+              total: MEETING_DURATION,
             };
-            meetings.unshift(meeting);
-            for (const id of participantIds) {
-              const e = employees.find((x) => x.id === id)!;
-              e.status = "meeting";
-              e.statusLabel = "MTG中";
-              e.currentTask = {
-                kind: "mtg",
-                label: "定例MTG",
-                detail: agenda,
-                progress: 0,
-                total: MEETING_DURATION,
-              };
-            }
-            activity = log(
-              activity,
-              participantIds[0],
-              `🤝 「${agenda}」を開始(参加: ${participantIds.length}名)`,
-              "meeting"
-            );
           }
+          activity = log(
+            activity,
+            participantIds[0],
+            `🤝 「${agenda}」を開始(参加: ${participantIds.length}名)`,
+            "meeting"
+          );
         }
 
-        // --- 各社員の業務進行 ---
+        // --- 各社員の業務進行(所属事業部のKPI・商材で回る) ---
         for (const emp of employees) {
           if (emp.status === "meeting") continue;
+          const kpi = kpiOf(emp.divisionId);
+          const product = productOf(emp.divisionId);
 
           // 休憩中:仕事が発生していれば復帰
           if (emp.status === "break") {
@@ -511,7 +541,7 @@ export const useCompanyStore = create<CompanyState>()(
             if (tpl) {
               emp.status = "working";
               emp.statusLabel = tpl.statusLabel;
-              emp.currentTask = makeTask(tpl, company);
+              emp.currentTask = makeTask(tpl, product);
               activity = log(
                 activity,
                 emp.id,
@@ -528,7 +558,7 @@ export const useCompanyStore = create<CompanyState>()(
             if (tpl) {
               emp.status = "working";
               emp.statusLabel = tpl.statusLabel;
-              emp.currentTask = makeTask(tpl, company);
+              emp.currentTask = makeTask(tpl, product);
             } else {
               emp.status = "break";
               const game = pick(GAMES);
@@ -546,7 +576,7 @@ export const useCompanyStore = create<CompanyState>()(
           // タスク進行
           emp.currentTask.progress += 1;
           if (emp.currentTask.progress >= emp.currentTask.total) {
-            const result = applyTaskEffect(emp, emp.currentTask, kpi, company);
+            const result = applyTaskEffect(emp, emp.currentTask, kpi, product);
             activity = log(activity, emp.id, result.message, "work");
             if (result.artifact) {
               artifacts = [result.artifact, ...artifacts].slice(0, 80);
@@ -619,33 +649,40 @@ export const useCompanyStore = create<CompanyState>()(
             );
           }
 
-          // 社員追加提案:リスト在庫過多 or 定期的な提案
+          // 社員追加提案:リスト在庫が溜まっている事業部を優先
           const availableHires = HIRE_CANDIDATES.filter(
             (h) => !proposedHires.includes(h.name)
           );
-          const salesOverloaded =
-            kpi.leadLists >= 6 &&
-            availableHires.some((h) => h.department === "sales");
+          // 営業リストが過多な事業部を探す(営業増員の必要性)
+          const overloadedDiv = products.find(
+            (p) => (kpis[p.id]?.leadLists ?? 0) >= 6
+          );
           if (
             availableHires.length > 0 &&
-            (salesOverloaded ? Math.random() < 0.1 : Math.random() < 0.008)
+            (overloadedDiv ? Math.random() < 0.1 : Math.random() < 0.008)
           ) {
-            const candidate = salesOverloaded
-              ? availableHires.find((h) => h.department === "sales")!
+            const targetDiv = overloadedDiv ?? pick(products);
+            const divEmployees = employees.filter((e) => e.divisionId === targetDiv.id);
+            const candidateBase = overloadedDiv
+              ? availableHires.find((h) => h.department === "sales") ?? pick(availableHires)
               : pick(availableHires);
+            const candidate: typeof candidateBase = {
+              ...candidateBase,
+              divisionId: targetDiv.id,
+            };
             const proposer =
-              employees.find(
-                (e) =>
-                  e.department === candidate.department &&
-                  e.role.includes("リーダー")
-              ) ?? pick(employees.filter((e) => e.department === candidate.department)) ?? pick(employees);
+              divEmployees.find(
+                (e) => e.department === candidate.department && e.role.includes("リーダー")
+              ) ??
+              pick(divEmployees.filter((e) => e.department === candidate.department)) ??
+              (divEmployees.length > 0 ? pick(divEmployees) : pick(employees));
             proposedHires.push(candidate.name);
             approvals = [
               {
                 id: uid(),
                 type: "hire",
-                title: `AI社員の追加提案:${candidate.name}(${candidate.role})`,
-                description: candidate.reason,
+                title: `AI社員の追加提案:${candidate.name}(${targetDiv.name}・${candidate.role})`,
+                description: `【${targetDiv.name}事業部】${candidate.reason}`,
                 requesterId: proposer.id,
                 status: "pending",
                 createdAt: Date.now(),
@@ -657,7 +694,7 @@ export const useCompanyStore = create<CompanyState>()(
             activity = log(
               activity,
               proposer.id,
-              `📨 代表へAI社員の追加を提案:${candidate.name}(${DEPARTMENTS[candidate.department].name}・${candidate.role})`,
+              `📨 代表へAI社員の追加を提案:${candidate.name}(${targetDiv.name}・${DEPARTMENTS[candidate.department].name})`,
               "approval"
             );
           }
@@ -667,11 +704,11 @@ export const useCompanyStore = create<CompanyState>()(
           employees,
           approvals,
           activity,
-          meetings: meetings.slice(0, 20),
+          meetings: meetings.slice(0, 30),
           artifacts,
-          kpi,
+          kpis,
           tickCount,
-          lastMeetingTick,
+          lastMeetingTicks,
           usedToolRequests,
           usedExpenseRequests,
           proposedHires,
@@ -683,8 +720,8 @@ export const useCompanyStore = create<CompanyState>()(
           saveCompanySnapshot({
             employees,
             approvals,
-            meetings: meetings.slice(0, 20),
-            kpi,
+            meetings: meetings.slice(0, 30),
+            kpi: aggregateKpi(kpis),
             tickCount,
           });
         }
@@ -704,12 +741,15 @@ export const useCompanyStore = create<CompanyState>()(
 
         if (approved && target.type === "hire" && target.hire && account) {
           const h = target.hire;
+          const divName =
+            s.company.products.find((p) => p.id === h.divisionId)?.name ?? "";
           const newEmp: Employee = {
             id: uid(),
             name: h.name,
             avatar: h.avatar,
             role: h.role,
             department: h.department,
+            divisionId: h.divisionId,
             status: "working",
             statusLabel: "入社手続き中",
             currentTask: null,
@@ -724,7 +764,7 @@ export const useCompanyStore = create<CompanyState>()(
           activity = log(
             activity,
             newEmp.id,
-            `🎊 ${h.name}が${DEPARTMENTS[h.department].name}に入社!Googleアカウント(${account.email})が付与されました`,
+            `🎊 ${h.name}が${divName ? divName + "・" : ""}${DEPARTMENTS[h.department].name}に入社!Googleアカウント(${account.email})が付与されました`,
             "system"
           );
         } else if (target.type !== "hire") {
@@ -758,24 +798,51 @@ export const useCompanyStore = create<CompanyState>()(
         });
       },
 
-      startMeetingNow: () => {
-        set({ lastMeetingTick: get().tickCount - MEETING_INTERVAL });
+      startMeetingNow: (divisionId) => {
+        const s = get();
+        const targetTick = s.tickCount - MEETING_INTERVAL;
+        const next = { ...s.lastMeetingTicks };
+        if (divisionId) {
+          next[divisionId] = targetTick;
+        } else {
+          for (const p of s.company.products) next[p.id] = targetTick;
+        }
+        set({ lastMeetingTicks: next });
       },
 
       updateCompany: (profile) => {
-        set({ company: profile });
+        const s = get();
+        // 新しく追加された事業部にはスターターチーム(営業・事務・マーケ各1)を配属
+        const existingDivs = new Set(s.employees.map((e) => e.divisionId));
+        let employees = s.employees;
+        const kpis = { ...s.kpis };
+        for (const p of profile.products) {
+          if (!existingDivs.has(p.id)) {
+            const team = makeDivisionTeam(p.id, p.id + p.name).map((e) => ({
+              ...e,
+              status: "working" as const,
+              statusLabel: "出社準備中",
+              currentTask: null,
+              joinedAt: Date.now(),
+            }));
+            employees = [...employees, ...team];
+            if (!kpis[p.id]) kpis[p.id] = freshKpi();
+          }
+        }
+        set({ company: profile, employees, kpis });
       },
 
       resetCompany: () => {
         set({
+          company: DEFAULT_COMPANY,
           employees: seedEmployees(),
           approvals: [],
           activity: [],
           meetings: [],
           artifacts: [],
-          kpi: { ...initialKpi },
+          kpis: { "prod-default": freshKpi() },
           tickCount: 0,
-          lastMeetingTick: 0,
+          lastMeetingTicks: {},
           usedToolRequests: [],
           usedExpenseRequests: [],
           proposedHires: [],
@@ -784,15 +851,38 @@ export const useCompanyStore = create<CompanyState>()(
     }),
     {
       name: "aibou-office-v1",
-      version: 3,
+      version: 4,
       skipHydration: true,
       migrate: (persisted, version) => {
-        const state = persisted as Partial<CompanyState>;
+        const state = persisted as Partial<CompanyState> & {
+          kpi?: Kpi;
+          lastMeetingTick?: number;
+        };
         if (version < 2) {
           state.artifacts = state.artifacts ?? [];
         }
         if (version < 3) {
           state.company = state.company ?? DEFAULT_COMPANY;
+        }
+        if (version < 4) {
+          // 単一KPI → 事業部別KPIへ。既存データは既定事業部(prod-default)に集約
+          const defId = state.company?.products[0]?.id ?? "prod-default";
+          state.kpis = { [defId]: state.kpi ?? freshKpi() };
+          state.lastMeetingTicks = {};
+          delete state.kpi;
+          delete state.lastMeetingTick;
+          state.employees = (state.employees ?? []).map((e) => ({
+            ...e,
+            divisionId: e.divisionId ?? defId,
+          }));
+          state.artifacts = (state.artifacts ?? []).map((a) => ({
+            ...a,
+            divisionId: a.divisionId ?? defId,
+          }));
+          state.meetings = (state.meetings ?? []).map((m) => ({
+            ...m,
+            divisionId: m.divisionId ?? defId,
+          }));
         }
         return state as CompanyState;
       },

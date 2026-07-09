@@ -78,11 +78,13 @@ function ArtifactCard({ artifact, ownerName }: { artifact: Artifact; ownerName: 
   );
 }
 
-function ShelfPanel() {
-  const artifacts = useCompanyStore((s) => s.artifacts);
+function ShelfPanel({ divisionId }: { divisionId: string }) {
+  const allArtifacts = useCompanyStore((s) => s.artifacts);
   const employees = useCompanyStore((s) => s.employees);
   const [filter, setFilter] = useState<DepartmentId | "all">("all");
   const nameOf = (id: string) => employees.find((e) => e.id === id)?.name ?? "退職済み";
+  // この事業部の成果物のみ
+  const artifacts = allArtifacts.filter((a) => a.divisionId === divisionId);
   const filtered = filter === "all" ? artifacts : artifacts.filter((a) => a.department === filter);
 
   return (
@@ -140,7 +142,7 @@ function EmployeePanel({ employeeId }: { employeeId: string }) {
           className="flex h-12 w-12 items-center justify-center rounded-2xl text-2xl shrink-0"
           style={{ backgroundColor: `${emp.color}22` }}
         >
-          🤖
+          {emp.avatar === "human" ? "🙂" : "🤖"}
         </div>
         <div className="min-w-0">
           <p className="font-bold text-sm text-slate-800">{emp.name}</p>
@@ -200,15 +202,19 @@ const TARGET_BADGE: Record<string, { label: string; className: string }> = {
   both: { label: "法人+個人", className: "bg-violet-100 text-violet-700" },
 };
 
-function WhiteboardPanel({ department }: { department: DepartmentId }) {
-  const kpi = useCompanyStore((s) => s.kpi);
+function WhiteboardPanel({ department, divisionId }: { department: DepartmentId; divisionId: string }) {
+  const kpis = useCompanyStore((s) => s.kpis);
   const employees = useCompanyStore((s) => s.employees);
   const meetings = useCompanyStore((s) => s.meetings);
   const company = useCompanyStore((s) => s.company);
   const dept = DEPARTMENTS[department];
   const goals = DEPT_GOALS[department];
-  const members = employees.filter((e) => e.department === department);
-  const lastMeeting = meetings.find((m) => m.status === "done");
+  const kpi = kpis[divisionId] ?? {
+    insights: 0, leadLists: 0, outreach: 0, appointments: 0, posts: 0, inquiriesHandled: 0, strategies: 0,
+  };
+  const division = company.products.find((p) => p.id === divisionId);
+  const members = employees.filter((e) => e.department === department && e.divisionId === divisionId);
+  const lastMeeting = meetings.find((m) => m.status === "done" && m.divisionId === divisionId);
 
   return (
     <>
@@ -217,24 +223,21 @@ function WhiteboardPanel({ department }: { department: DepartmentId }) {
         <p className="text-[11px] font-bold">{dept.mission}</p>
       </div>
 
-      {/* 取扱商材(全部署に表示。営業対象もここで確認) */}
-      <p className="text-[10px] font-bold text-slate-500 mb-2">🧩 取扱商材(事業部)</p>
-      <div className="space-y-1.5 mb-4">
-        {company.products.map((p) => {
-          const badge = TARGET_BADGE[p.target];
-          return (
-            <div key={p.id} className="rounded-lg bg-slate-50 ring-1 ring-slate-200 px-2.5 py-1.5">
-              <div className="flex items-center gap-2">
-                <span className="flex-1 text-[11px] font-bold text-slate-700 truncate">{p.name}</span>
-                <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-bold shrink-0 ${badge.className}`}>
-                  {badge.label}
-                </span>
-              </div>
-              {p.description && <p className="text-[9px] text-slate-400 mt-0.5">{p.description}</p>}
+      {/* この事業部の取扱商材と営業対象 */}
+      {division && (
+        <>
+          <p className="text-[10px] font-bold text-slate-500 mb-2">🧩 この事業部の商材</p>
+          <div className="rounded-lg bg-slate-50 ring-1 ring-slate-200 px-2.5 py-1.5 mb-4">
+            <div className="flex items-center gap-2">
+              <span className="flex-1 text-[11px] font-bold text-slate-700 truncate">{division.name}</span>
+              <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-bold shrink-0 ${TARGET_BADGE[division.target].className}`}>
+                {TARGET_BADGE[division.target].label}
+              </span>
             </div>
-          );
-        })}
-      </div>
+            {division.description && <p className="text-[9px] text-slate-400 mt-0.5">{division.description}</p>}
+          </div>
+        </>
+      )}
 
       <p className="text-[10px] font-bold text-slate-500 mb-2">🎯 目標と進捗</p>
       <div className="space-y-2.5 mb-4">
@@ -289,7 +292,7 @@ function WhiteboardPanel({ department }: { department: DepartmentId }) {
       <div className="space-y-1.5">
         {members.map((m) => (
           <div key={m.id} className="flex items-center gap-2 rounded-lg bg-slate-50 ring-1 ring-slate-100 px-2 py-1.5">
-            <span className="text-sm">🤖</span>
+            <span className="text-sm">{m.avatar === "human" ? "🙂" : "🤖"}</span>
             <span className="flex-1 text-[10px] font-bold text-slate-700">{m.name}</span>
             <span className="text-[9px] text-slate-400">{m.role}</span>
             <span className="rounded-full bg-white px-1.5 py-px text-[8px] font-bold text-slate-500 ring-1 ring-slate-200">
@@ -302,9 +305,10 @@ function WhiteboardPanel({ department }: { department: DepartmentId }) {
   );
 }
 
-function MeetingPanel() {
-  const meetings = useCompanyStore((s) => s.meetings);
+function MeetingPanel({ divisionId }: { divisionId: string }) {
+  const allMeetings = useCompanyStore((s) => s.meetings);
   const employees = useCompanyStore((s) => s.employees);
+  const meetings = allMeetings.filter((m) => m.divisionId === divisionId);
   const current = meetings.find((m) => m.status === "in_progress");
   const done = meetings.filter((m) => m.status === "done");
   const target = current ?? done[0];
@@ -367,9 +371,11 @@ function MeetingPanel() {
 
 export default function OfficeInspector({
   selection,
+  divisionId,
   onClose,
 }: {
   selection: OfficeSelection | null;
+  divisionId: string;
   onClose: () => void;
 }) {
   if (!selection) return null;
@@ -381,7 +387,7 @@ export default function OfficeInspector({
         ? `📋 ${DEPARTMENTS[selection.department].name}ホワイトボード`
         : selection.kind === "meeting"
           ? "🤝 会議室"
-          : "🤖 社員デスク";
+          : "👤 社員デスク";
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
@@ -401,10 +407,12 @@ export default function OfficeInspector({
           </button>
         </header>
         <div className="flex-1 overflow-y-auto px-4 py-3">
-          {selection.kind === "shelf" && <ShelfPanel />}
+          {selection.kind === "shelf" && <ShelfPanel divisionId={divisionId} />}
           {selection.kind === "employee" && <EmployeePanel employeeId={selection.employeeId} />}
-          {selection.kind === "whiteboard" && <WhiteboardPanel department={selection.department} />}
-          {selection.kind === "meeting" && <MeetingPanel />}
+          {selection.kind === "whiteboard" && (
+            <WhiteboardPanel department={selection.department} divisionId={divisionId} />
+          )}
+          {selection.kind === "meeting" && <MeetingPanel divisionId={divisionId} />}
         </div>
       </aside>
     </div>

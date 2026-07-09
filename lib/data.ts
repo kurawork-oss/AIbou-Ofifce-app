@@ -186,6 +186,7 @@ export const SEED_EMPLOYEES: Omit<
 >[] = [
   {
     id: "emp-sato",
+    divisionId: "prod-default",
     avatar: "human",
     name: "佐藤 蓮",
     role: "営業マネージャー",
@@ -198,6 +199,7 @@ export const SEED_EMPLOYEES: Omit<
   },
   {
     id: "emp-takahashi",
+    divisionId: "prod-default",
     avatar: "human",
     name: "高橋 美咲",
     role: "アポインター",
@@ -210,6 +212,7 @@ export const SEED_EMPLOYEES: Omit<
   },
   {
     id: "emp-suzuki",
+    divisionId: "prod-default",
     avatar: "robot",
     name: "鈴木 葵",
     role: "事務リーダー",
@@ -222,6 +225,7 @@ export const SEED_EMPLOYEES: Omit<
   },
   {
     id: "emp-tanaka",
+    divisionId: "prod-default",
     avatar: "human",
     name: "田中 陽菜",
     role: "事務アシスタント",
@@ -234,6 +238,7 @@ export const SEED_EMPLOYEES: Omit<
   },
   {
     id: "emp-ito",
+    divisionId: "prod-default",
     avatar: "robot",
     name: "伊藤 大和",
     role: "マーケリーダー",
@@ -246,6 +251,7 @@ export const SEED_EMPLOYEES: Omit<
   },
   {
     id: "emp-watanabe",
+    divisionId: "prod-default",
     avatar: "human",
     name: "渡辺 結衣",
     role: "コンテンツ担当",
@@ -258,10 +264,81 @@ export const SEED_EMPLOYEES: Omit<
   },
 ];
 
+// 新しい事業部(商材)を追加したとき用の、部署別スターター人材テンプレート
+const STARTER_ROLES: {
+  department: DepartmentId;
+  role: string;
+  avatar: "robot" | "human";
+  emoji: string;
+  color: string;
+  bio: string;
+  first: string[];
+}[] = [
+  {
+    department: "sales",
+    role: "営業担当",
+    avatar: "human",
+    emoji: "🧑‍💼",
+    color: "#e0592a",
+    bio: "新規事業の立ち上げ営業。フットワークが軽い。",
+    first: ["蒼一", "美月", "拓海", "彩香"],
+  },
+  {
+    department: "admin",
+    role: "事務担当",
+    avatar: "robot",
+    emoji: "🧑‍💻",
+    color: "#2a7de0",
+    bio: "リスト整備と問い合わせ対応をそつなくこなす。",
+    first: ["理沙", "健太", "優奈", "翔"],
+  },
+  {
+    department: "marketing",
+    role: "マーケ担当",
+    avatar: "robot",
+    emoji: "🕵️",
+    color: "#8a3fd1",
+    bio: "商材に合わせたリサーチと発信が得意。",
+    first: ["直樹", "咲良", "遼", "花音"],
+  },
+];
+
+const FAMILY_NAMES = ["青木", "石田", "上田", "遠藤", "大西", "川口", "木下", "小松"];
+
+let starterCounter = 0;
+
+// 事業部に配属する3名(営業・事務・マーケ各1)を生成
+export function makeDivisionTeam(
+  divisionId: string,
+  seedKey: string
+): Omit<Employee, "status" | "statusLabel" | "currentTask" | "joinedAt">[] {
+  const h = seedKey.split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9973, 7);
+  return STARTER_ROLES.map((r, i) => {
+    starterCounter++;
+    const fam = FAMILY_NAMES[(h + i) % FAMILY_NAMES.length];
+    const first = r.first[(h + i * 3) % r.first.length];
+    const slug = `${divisionId}-${r.department}-${starterCounter}`;
+    return {
+      id: `emp-${slug}`,
+      divisionId,
+      avatar: r.avatar,
+      name: `${fam} ${first}`,
+      role: r.role,
+      department: r.department,
+      googleEmail: `${r.department}.${starterCounter}.aibou@gmail.com`,
+      googlePassword: `changeme-${slug}`,
+      emoji: r.emoji,
+      color: r.color,
+      bio: r.bio,
+    };
+  });
+}
+
 // 社員追加提案の候補プール
 export const HIRE_CANDIDATES: HirePayload[] = [
   {
     name: "山本 蒼真",
+    divisionId: "prod-default",
     avatar: "robot",
     role: "インサイドセールス",
     department: "sales",
@@ -273,6 +350,7 @@ export const HIRE_CANDIDATES: HirePayload[] = [
   },
   {
     name: "小林 芽依",
+    divisionId: "prod-default",
     avatar: "human",
     role: "カスタマーサポート",
     department: "admin",
@@ -284,6 +362,7 @@ export const HIRE_CANDIDATES: HirePayload[] = [
   },
   {
     name: "加藤 悠",
+    divisionId: "prod-default",
     avatar: "robot",
     role: "動画クリエイター",
     department: "marketing",
