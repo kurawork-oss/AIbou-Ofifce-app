@@ -194,10 +194,17 @@ function EmployeePanel({ employeeId }: { employeeId: string }) {
   );
 }
 
+const TARGET_BADGE: Record<string, { label: string; className: string }> = {
+  b2b: { label: "法人B2B", className: "bg-blue-100 text-blue-700" },
+  b2c: { label: "個人B2C", className: "bg-pink-100 text-pink-700" },
+  both: { label: "法人+個人", className: "bg-violet-100 text-violet-700" },
+};
+
 function WhiteboardPanel({ department }: { department: DepartmentId }) {
   const kpi = useCompanyStore((s) => s.kpi);
   const employees = useCompanyStore((s) => s.employees);
   const meetings = useCompanyStore((s) => s.meetings);
+  const company = useCompanyStore((s) => s.company);
   const dept = DEPARTMENTS[department];
   const goals = DEPT_GOALS[department];
   const members = employees.filter((e) => e.department === department);
@@ -208,6 +215,25 @@ function WhiteboardPanel({ department }: { department: DepartmentId }) {
       <div className="rounded-xl px-3 py-2 mb-3 text-white" style={{ backgroundColor: dept.color }}>
         <p className="text-[10px] opacity-80">ミッション</p>
         <p className="text-[11px] font-bold">{dept.mission}</p>
+      </div>
+
+      {/* 取扱商材(全部署に表示。営業対象もここで確認) */}
+      <p className="text-[10px] font-bold text-slate-500 mb-2">🧩 取扱商材(事業部)</p>
+      <div className="space-y-1.5 mb-4">
+        {company.products.map((p) => {
+          const badge = TARGET_BADGE[p.target];
+          return (
+            <div key={p.id} className="rounded-lg bg-slate-50 ring-1 ring-slate-200 px-2.5 py-1.5">
+              <div className="flex items-center gap-2">
+                <span className="flex-1 text-[11px] font-bold text-slate-700 truncate">{p.name}</span>
+                <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-bold shrink-0 ${badge.className}`}>
+                  {badge.label}
+                </span>
+              </div>
+              {p.description && <p className="text-[9px] text-slate-400 mt-0.5">{p.description}</p>}
+            </div>
+          );
+        })}
       </div>
 
       <p className="text-[10px] font-bold text-slate-500 mb-2">🎯 目標と進捗</p>

@@ -6,6 +6,7 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 import OfficeView from "@/components/OfficeView";
 import ApprovalBox from "@/components/ApprovalBox";
 import EmployeeAdmin from "@/components/EmployeeAdmin";
+import CompanySettings from "@/components/CompanySettings";
 
 const TICK_MS = 3000;
 
@@ -27,7 +28,7 @@ function KpiBar() {
       {items.map((i) => (
         <div
           key={i.label}
-          className="flex items-center gap-2 rounded-xl bg-white px-3 py-1.5 shadow-sm ring-1 ring-slate-200 shrink-0"
+          className="flex items-center gap-2 rounded-xl bg-white/95 px-3 py-1.5 shadow-md ring-1 ring-white/40 shrink-0 backdrop-blur"
         >
           <span className="text-sm">{i.icon}</span>
           <div>
@@ -45,8 +46,10 @@ function KpiBar() {
 export default function Home() {
   const [mode, setMode] = useState<Mode>("office");
   const [hydrated, setHydrated] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const tick = useCompanyStore((s) => s.tick);
   const resetCompany = useCompanyStore((s) => s.resetCompany);
+  const company = useCompanyStore((s) => s.company);
   const pendingCount = useCompanyStore(
     (s) => s.approvals.filter((a) => a.status === "pending").length
   );
@@ -71,55 +74,64 @@ export default function Home() {
   ];
 
   return (
-    <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-4">
-      <header className="mb-4">
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+    <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-3">
+      {showSettings && <CompanySettings onClose={() => setShowSettings(false)} />}
+      <header className="mb-3">
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-2.5">
           <div>
-            <h1 className="text-xl font-extrabold tracking-tight text-slate-900">
-              AIbou Office
+            <h1 className="text-xl font-extrabold tracking-tight text-white drop-shadow">
+              {hydrated ? (company?.companyName ?? "AIbou Office") : "AIbou Office"}
             </h1>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-indigo-200/80">
               AI社員だけで回るバーチャルカンパニー — あなたは代表として承認するだけ
             </p>
           </div>
-          <span
-            className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
-              isSupabaseConfigured()
-                ? "bg-emerald-100 text-emerald-700"
-                : "bg-slate-200 text-slate-500"
-            }`}
-            title={
-              isSupabaseConfigured()
-                ? "社員の記憶保管庫をSupabaseへ同期しています"
-                : "NEXT_PUBLIC_SUPABASE_URL / ANON_KEY を設定すると記憶保管庫が有効になります"
-            }
-          >
-            {isSupabaseConfigured() ? "☁️ Supabase同期中" : "💾 ローカル保存"}
-          </span>
-          <button
-            onClick={() => {
-              if (
-                confirm(
-                  "会社を初期状態にリセットしますか?(社員・履歴・KPIが初期化されます)"
-                )
-              ) {
-                resetCompany();
+          <div className="flex items-center gap-2 flex-wrap">
+            <span
+              className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                isSupabaseConfigured()
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-white/15 text-indigo-100"
+              }`}
+              title={
+                isSupabaseConfigured()
+                  ? "社員の記憶保管庫をSupabaseへ同期しています"
+                  : "NEXT_PUBLIC_SUPABASE_URL / ANON_KEY を設定すると記憶保管庫が有効になります"
               }
-            }}
-            className="rounded-lg px-3 py-1.5 text-[11px] text-slate-400 ring-1 ring-slate-200 hover:bg-white hover:text-slate-600 transition"
-          >
-            会社をリセット
-          </button>
+            >
+              {isSupabaseConfigured() ? "☁️ Supabase同期中" : "💾 ローカル保存"}
+            </span>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-bold text-slate-700 shadow hover:bg-white transition"
+            >
+              ⚙️ 会社設定
+            </button>
+            <button
+              onClick={() => {
+                if (
+                  confirm(
+                    "会社を初期状態にリセットしますか?(社員・履歴・KPIが初期化されます)"
+                  )
+                ) {
+                  resetCompany();
+                }
+              }}
+              className="rounded-full px-3 py-1.5 text-[11px] text-indigo-200/70 ring-1 ring-white/20 hover:bg-white/10 hover:text-white transition"
+            >
+              会社をリセット
+            </button>
+          </div>
         </div>
         {hydrated && <KpiBar />}
       </header>
 
-      <nav className="mb-4 flex gap-1 rounded-2xl bg-white p-1 shadow-sm ring-1 ring-slate-200 w-fit">
+      <nav className="mb-3 flex gap-1 rounded-2xl bg-white/95 p-1 shadow-md ring-1 ring-white/40 w-fit backdrop-blur">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setMode(t.id)}
-            className={`relative rounded-xl px-4 py-2 text-sm font-bold transition ${
+            className={`relative rounded-xl px-4 py-1.5 text-sm font-bold transition ${
               mode === t.id
                 ? "bg-slate-900 text-white shadow"
                 : "text-slate-500 hover:bg-slate-100"
@@ -136,7 +148,7 @@ export default function Home() {
       </nav>
 
       {!hydrated ? (
-        <div className="py-24 text-center text-sm text-slate-400">
+        <div className="py-24 text-center text-sm text-indigo-200/70">
           オフィスの鍵を開けています…
         </div>
       ) : (

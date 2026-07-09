@@ -12,7 +12,7 @@ import OfficeInspector from "./OfficeInspector";
 const Office3D = dynamic(() => import("./Office3D"), {
   ssr: false,
   loading: () => (
-    <div className="h-[600px] w-full rounded-3xl ring-1 ring-slate-200 bg-slate-100 flex items-center justify-center text-sm text-slate-400">
+    <div className="h-[clamp(340px,56vh,560px)] w-full rounded-3xl ring-1 ring-white/30 bg-slate-800/40 flex items-center justify-center text-sm text-indigo-100">
       3Dオフィスを準備中…
     </div>
   ),
@@ -151,9 +151,9 @@ function ActivityFeed() {
     employees.find((e) => e.id === id)?.name ?? "システム";
 
   return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 h-full flex flex-col">
+    <div className="rounded-2xl bg-white p-4 shadow-lg ring-1 ring-white/40 h-full flex flex-col max-h-[clamp(340px,56vh,560px)]">
       <h3 className="font-bold text-sm text-slate-700 mb-2">📡 社内タイムライン</h3>
-      <div className="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[480px]">
+      <div className="flex-1 overflow-y-auto space-y-2 pr-1">
         {activity.length === 0 && (
           <p className="text-xs text-slate-400">まだ動きはありません…</p>
         )}

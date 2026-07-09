@@ -23,11 +23,28 @@ export interface EmployeeTask {
   kind: string; // エンジン内部でのタスク種別
 }
 
+// 営業対象(法人/個人/両方)
+export type SalesTargetType = "b2b" | "b2c" | "both";
+
+// 商材=事業部。商材ごとに事業部を追加していける
+export interface ProductLine {
+  id: string;
+  name: string; // 商材名(例: AI業務自動化ツール)
+  description: string;
+  target: SalesTargetType;
+}
+
+export interface CompanyProfile {
+  companyName: string;
+  products: ProductLine[];
+}
+
 export interface Employee {
   id: string;
   name: string;
   role: string; // 役職
   department: DepartmentId;
+  avatar?: "robot" | "human"; // 3Dアバターの種類(未設定はハッシュで自動)
   status: EmployeeStatus;
   statusLabel: string; // 「架電中」「リサーチ中」「ゲーム中」など
   currentTask: EmployeeTask | null;
@@ -50,6 +67,7 @@ export interface HirePayload {
   name: string;
   role: string;
   department: DepartmentId;
+  avatar?: "robot" | "human";
   emoji: string;
   color: string;
   bio: string;

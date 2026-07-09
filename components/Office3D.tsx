@@ -121,6 +121,53 @@ function robotLookFor(emp: Employee): RobotLook {
   return { ...base, ...ROBOT_OVERRIDES[emp.id] };
 }
 
+// アバターがロボットか人間か(未設定はハッシュで半々に振り分け)
+function avatarKindOf(emp: Employee): "robot" | "human" {
+  if (emp.avatar) return emp.avatar;
+  return hash(emp.id + "av", 2) === 0 ? "robot" : "human";
+}
+
+// ================================================================
+// 人間(トモダチコレクション風Mii)の個性
+// ================================================================
+
+type HairStyle = "short" | "bob" | "pony" | "bun" | "spiky" | "bald";
+
+interface HumanLook {
+  skin: string;
+  hairColor: string;
+  hairStyle: HairStyle;
+  shirt: string;
+  glasses: boolean;
+  height: number;
+  blush: boolean;
+}
+
+const SKIN_TONES = ["#ffdcc0", "#f6c79c", "#e0a878", "#c88a5a"];
+const HAIR_TONES = ["#2b2117", "#4a3220", "#6b4a2f", "#1a1a1a", "#8a6a3a", "#d9b382"];
+const HAIR_STYLES: HairStyle[] = ["short", "bob", "pony", "bun", "spiky"];
+const SHIRT_TONES = ["#f472b6", "#60a5fa", "#34d399", "#fbbf24", "#a78bfa", "#fb7185", "#38bdf8"];
+
+const HUMAN_OVERRIDES: Record<string, Partial<HumanLook>> = {
+  "emp-sato": { hairStyle: "short", glasses: false, height: 1.05 },
+  "emp-takahashi": { hairStyle: "pony", glasses: false, height: 0.95, blush: true },
+  "emp-tanaka": { hairStyle: "bob", glasses: false, height: 0.92, blush: true },
+  "emp-watanabe": { hairStyle: "bun", glasses: true, height: 0.96 },
+};
+
+function humanLookFor(emp: Employee): HumanLook {
+  const base: HumanLook = {
+    skin: SKIN_TONES[hash(emp.id + "sk", SKIN_TONES.length)],
+    hairColor: HAIR_TONES[hash(emp.id + "hc", HAIR_TONES.length)],
+    hairStyle: HAIR_STYLES[hash(emp.id + "hs", HAIR_STYLES.length)],
+    shirt: SHIRT_TONES[hash(emp.id + "sh", SHIRT_TONES.length)],
+    glasses: hash(emp.id + "gl", 3) === 0,
+    height: 0.9 + hash(emp.id + "hh", 5) * 0.05,
+    blush: hash(emp.id + "bl", 2) === 0,
+  };
+  return { ...base, ...HUMAN_OVERRIDES[emp.id] };
+}
+
 // ================================================================
 // 移動:目標位置とルート(瞬間移動しない)
 // ================================================================
@@ -309,7 +356,237 @@ function ToyMaterial({ color }: { color: string }) {
   );
 }
 
-function RobotCharacter({
+interface BodyRefs {
+  leftArm: React.RefObject<THREE.Group | null>;
+  rightArm: React.RefObject<THREE.Group | null>;
+  leftEye: React.RefObject<THREE.Mesh | null>;
+  rightEye: React.RefObject<THREE.Mesh | null>;
+  mouth: React.RefObject<THREE.Mesh | null>;
+  glow: React.RefObject<THREE.Mesh | null>;
+}
+
+// 頭髪(トモコレ風)
+function HumanHair({ style, color }: { style: HairStyle; color: string }) {
+  if (style === "bald") return null;
+  return (
+    <group>
+      {/* ベースの頭髪 */}
+      <mesh position={[0, 1.44, -0.02]} scale={[1.06, 1.02, 1.06]} castShadow>
+        <sphereGeometry args={[0.3, 24, 18, 0, Math.PI * 2, 0, Math.PI * 0.62]} />
+        <meshStandardMaterial color={color} roughness={0.7} />
+      </mesh>
+      {style === "bob" && (
+        <>
+          <mesh position={[-0.28, 1.28, 0.04]} castShadow>
+            <sphereGeometry args={[0.12, 14, 14]} />
+            <meshStandardMaterial color={color} roughness={0.7} />
+          </mesh>
+          <mesh position={[0.28, 1.28, 0.04]} castShadow>
+            <sphereGeometry args={[0.12, 14, 14]} />
+            <meshStandardMaterial color={color} roughness={0.7} />
+          </mesh>
+        </>
+      )}
+      {style === "pony" && (
+        <mesh position={[0, 1.42, -0.3]} rotation={[0.7, 0, 0]} castShadow>
+          <capsuleGeometry args={[0.08, 0.34, 6, 12]} />
+          <meshStandardMaterial color={color} roughness={0.7} />
+        </mesh>
+      )}
+      {style === "bun" && (
+        <mesh position={[0, 1.66, -0.14]} castShadow>
+          <sphereGeometry args={[0.13, 16, 16]} />
+          <meshStandardMaterial color={color} roughness={0.7} />
+        </mesh>
+      )}
+      {style === "spiky" &&
+        [-0.14, 0, 0.14].map((x, i) => (
+          <mesh key={i} position={[x, 1.66, 0.02]} rotation={[0, 0, i === 0 ? 0.3 : i === 2 ? -0.3 : 0]}>
+            <coneGeometry args={[0.07, 0.18, 8]} />
+            <meshStandardMaterial color={color} roughness={0.7} />
+          </mesh>
+        ))}
+    </group>
+  );
+}
+
+// 人間ボディ(Mii風)
+function HumanBody({ look, refs }: { look: HumanLook; refs: BodyRefs }) {
+  return (
+    <>
+      {/* 脚 */}
+      <mesh position={[-0.11, 0.18, 0]} castShadow>
+        <capsuleGeometry args={[0.08, 0.24, 6, 12]} />
+        <meshStandardMaterial color="#3f4a63" roughness={0.7} />
+      </mesh>
+      <mesh position={[0.11, 0.18, 0]} castShadow>
+        <capsuleGeometry args={[0.08, 0.24, 6, 12]} />
+        <meshStandardMaterial color="#3f4a63" roughness={0.7} />
+      </mesh>
+      {/* 胴体(シャツ) */}
+      <mesh position={[0, 0.56, 0]} scale={[1, 1.05, 0.85]} castShadow>
+        <capsuleGeometry args={[0.24, 0.36, 8, 16]} />
+        <meshStandardMaterial color={look.shirt} roughness={0.55} />
+      </mesh>
+      {/* 腕 */}
+      <group ref={refs.leftArm} position={[-0.3, 0.72, 0]}>
+        <mesh position={[0, -0.18, 0]} castShadow>
+          <capsuleGeometry args={[0.055, 0.28, 6, 12]} />
+          <meshStandardMaterial color={look.shirt} roughness={0.55} />
+        </mesh>
+        <mesh position={[0, -0.36, 0]}>
+          <sphereGeometry args={[0.06, 12, 12]} />
+          <meshStandardMaterial color={look.skin} roughness={0.6} />
+        </mesh>
+      </group>
+      <group ref={refs.rightArm} position={[0.3, 0.72, 0]}>
+        <mesh position={[0, -0.18, 0]} castShadow>
+          <capsuleGeometry args={[0.055, 0.28, 6, 12]} />
+          <meshStandardMaterial color={look.shirt} roughness={0.55} />
+        </mesh>
+        <mesh position={[0, -0.36, 0]}>
+          <sphereGeometry args={[0.06, 12, 12]} />
+          <meshStandardMaterial color={look.skin} roughness={0.6} />
+        </mesh>
+      </group>
+      {/* 頭(大きめのトモコレ比率) */}
+      <group position={[0, 1.14, 0]}>
+        <mesh castShadow>
+          <sphereGeometry args={[0.32, 32, 28]} />
+          <meshStandardMaterial color={look.skin} roughness={0.55} />
+        </mesh>
+        <HumanHair style={look.hairStyle} color={look.hairColor} />
+        {/* 目 */}
+        <mesh ref={refs.leftEye} position={[-0.1, 0.02, 0.3]}>
+          <sphereGeometry args={[0.04, 12, 12]} />
+          <meshStandardMaterial color="#20232b" roughness={0.3} />
+        </mesh>
+        <mesh ref={refs.rightEye} position={[0.1, 0.02, 0.3]}>
+          <sphereGeometry args={[0.04, 12, 12]} />
+          <meshStandardMaterial color="#20232b" roughness={0.3} />
+        </mesh>
+        {/* ほっぺ */}
+        {look.blush && (
+          <>
+            <mesh position={[-0.17, -0.06, 0.27]}>
+              <circleGeometry args={[0.045, 16]} />
+              <meshStandardMaterial color="#fca5a5" transparent opacity={0.7} />
+            </mesh>
+            <mesh position={[0.17, -0.06, 0.27]}>
+              <circleGeometry args={[0.045, 16]} />
+              <meshStandardMaterial color="#fca5a5" transparent opacity={0.7} />
+            </mesh>
+          </>
+        )}
+        {/* 口(にっこり) */}
+        <mesh ref={refs.mouth} position={[0, -0.11, 0.3]} rotation={[0, 0, Math.PI]}>
+          <torusGeometry args={[0.05, 0.014, 8, 16, Math.PI]} />
+          <meshStandardMaterial color="#b45c4a" roughness={0.5} />
+        </mesh>
+        {/* メガネ */}
+        {look.glasses && (
+          <group position={[0, 0.02, 0.31]}>
+            <mesh position={[-0.1, 0, 0]}>
+              <torusGeometry args={[0.07, 0.012, 8, 20]} />
+              <meshStandardMaterial color="#1f2937" />
+            </mesh>
+            <mesh position={[0.1, 0, 0]}>
+              <torusGeometry args={[0.07, 0.012, 8, 20]} />
+              <meshStandardMaterial color="#1f2937" />
+            </mesh>
+            <mesh>
+              <boxGeometry args={[0.06, 0.012, 0.012]} />
+              <meshStandardMaterial color="#1f2937" />
+            </mesh>
+          </group>
+        )}
+      </group>
+    </>
+  );
+}
+
+// ロボットボディ
+function RobotBody({ look, refs }: { look: RobotLook; refs: BodyRefs }) {
+  return (
+    <>
+      <mesh ref={refs.glow} position={[0, -0.08, 0]}>
+        <coneGeometry args={[0.16, 0.22, 16, 1, true]} />
+        <meshStandardMaterial
+          color="#7dd3fc"
+          emissive="#38bdf8"
+          emissiveIntensity={1}
+          transparent
+          opacity={0.55}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+      <mesh position={[0, 0.1, 0]} castShadow>
+        <sphereGeometry args={[0.19, 24, 18]} />
+        <ToyMaterial color="#3b82f6" />
+      </mesh>
+      <mesh position={[0, 0.5, 0]} scale={[1, 1.12, 0.92]} castShadow>
+        <sphereGeometry args={[0.32, 36, 28]} />
+        <ToyMaterial color="#ffffff" />
+      </mesh>
+      <mesh position={[0, 0.44, 0.22]} scale={[1, 1.2, 0.55]}>
+        <sphereGeometry args={[0.16, 24, 18]} />
+        <ToyMaterial color="#60a5fa" />
+      </mesh>
+      <Decal style={look.decal} accent={look.accent} />
+      <group ref={refs.leftArm} position={[-0.36, 0.62, 0]}>
+        <mesh position={[0, -0.14, 0]} castShadow>
+          <capsuleGeometry args={[0.06, 0.2, 6, 12]} />
+          <ToyMaterial color="#ffffff" />
+        </mesh>
+        <mesh position={[0, -0.3, 0]}>
+          <sphereGeometry args={[0.075, 14, 14]} />
+          <ToyMaterial color="#3b82f6" />
+        </mesh>
+      </group>
+      <group ref={refs.rightArm} position={[0.36, 0.62, 0]}>
+        <mesh position={[0, -0.14, 0]} castShadow>
+          <capsuleGeometry args={[0.06, 0.2, 6, 12]} />
+          <ToyMaterial color="#ffffff" />
+        </mesh>
+        <mesh position={[0, -0.3, 0]}>
+          <sphereGeometry args={[0.075, 14, 14]} />
+          <ToyMaterial color="#3b82f6" />
+        </mesh>
+      </group>
+      <group position={[0, 1.18, 0]}>
+        <RoundedBox args={[0.66, 0.5, 0.5]} radius={0.16} smoothness={8} castShadow>
+          <meshPhysicalMaterial color="#ffffff" roughness={0.3} clearcoat={0.8} clearcoatRoughness={0.2} />
+        </RoundedBox>
+        <RoundedBox args={[0.5, 0.34, 0.06]} radius={0.1} smoothness={6} position={[0, -0.01, 0.235]}>
+          <meshStandardMaterial color="#0b1220" roughness={0.35} />
+        </RoundedBox>
+        <mesh ref={refs.leftEye} position={[-0.11, 0.03, 0.275]}>
+          <capsuleGeometry args={[0.032, 0.05, 6, 12]} />
+          <meshStandardMaterial color={look.eyeColor} emissive={look.eyeColor} emissiveIntensity={2} />
+        </mesh>
+        <mesh ref={refs.rightEye} position={[0.11, 0.03, 0.275]}>
+          <capsuleGeometry args={[0.032, 0.05, 6, 12]} />
+          <meshStandardMaterial color={look.eyeColor} emissive={look.eyeColor} emissiveIntensity={2} />
+        </mesh>
+        <mesh ref={refs.mouth} position={[0, -0.07, 0.275]} rotation={[0, 0, Math.PI]}>
+          <torusGeometry args={[0.055, 0.014, 10, 20, Math.PI]} />
+          <meshStandardMaterial color={look.eyeColor} emissive={look.eyeColor} emissiveIntensity={2} />
+        </mesh>
+        <mesh position={[-0.36, 0, 0]} rotation={[0, 0, Math.PI / 2]} scale={look.podSize}>
+          <cylinderGeometry args={[0.09, 0.09, 0.08, 18]} />
+          <ToyMaterial color={look.accent} />
+        </mesh>
+        <mesh position={[0.36, 0, 0]} rotation={[0, 0, Math.PI / 2]} scale={look.podSize}>
+          <cylinderGeometry args={[0.09, 0.09, 0.08, 18]} />
+          <ToyMaterial color={look.accent} />
+        </mesh>
+      </group>
+      <Antenna style={look.antenna} accent={look.accent} />
+    </>
+  );
+}
+
+function Character({
   employee,
   target,
   onSelect,
@@ -326,12 +603,16 @@ function RobotCharacter({
   const rightEye = useRef<THREE.Mesh>(null);
   const mouth = useRef<THREE.Mesh>(null);
   const glow = useRef<THREE.Mesh>(null);
+  const refs: BodyRefs = { leftArm, rightArm, leftEye, rightEye, mouth, glow };
 
   // 経路(ウェイポイント)管理
   const route = useRef<THREE.Vector3[]>([]);
   const routeGoal = useRef<string>("");
 
-  const look = useMemo(() => robotLookFor(employee), [employee]);
+  const kind = useMemo(() => avatarKindOf(employee), [employee]);
+  const robotLook = useMemo(() => robotLookFor(employee), [employee]);
+  const humanLook = useMemo(() => humanLookFor(employee), [employee]);
+  const heightScale = kind === "robot" ? robotLook.height : humanLook.height;
   const phase = hash(employee.id, 100) / 10;
 
   // 初期位置:記憶があればそこから、新入社員は入口から歩いてくる
@@ -383,8 +664,15 @@ function RobotCharacter({
     positionMemory.set(employee.id, { x: g.position.x, z: g.position.z, ry: g.rotation.y });
 
     if (body.current) {
-      body.current.position.y = 0.42 + Math.sin(t * (moving ? 6 : 2) + phase) * (moving ? 0.035 : 0.05);
-      body.current.rotation.x = THREE.MathUtils.lerp(body.current.rotation.x, moving ? 0.16 : 0, 0.1);
+      // ロボットはホバー浮遊、人間は接地して軽く上下(歩行時はバウンド)
+      const baseY = kind === "robot" ? 0.42 : 0;
+      const bob = kind === "robot"
+        ? Math.sin(t * (moving ? 6 : 2) + phase) * (moving ? 0.035 : 0.05)
+        : moving
+          ? Math.abs(Math.sin(t * 8 + phase)) * 0.05
+          : Math.sin(t * 2 + phase) * 0.015;
+      body.current.position.y = baseY + bob;
+      body.current.rotation.x = THREE.MathUtils.lerp(body.current.rotation.x, moving ? 0.14 : 0, 0.1);
       body.current.rotation.z =
         target.pose === "game" && !moving ? Math.sin(t * 3 + phase) * 0.08 : 0;
     }
@@ -434,7 +722,7 @@ function RobotCharacter({
       ref={group}
       position={[initial.x, 0, initial.z]}
       rotation={[0, initial.ry, 0]}
-      scale={look.height}
+      scale={heightScale}
       onClick={(e) => {
         e.stopPropagation();
         onSelect({ kind: "employee", employeeId: employee.id });
@@ -443,79 +731,11 @@ function RobotCharacter({
       onPointerOut={() => (document.body.style.cursor = "auto")}
     >
       <group ref={body}>
-        <mesh ref={glow} position={[0, -0.08, 0]}>
-          <coneGeometry args={[0.16, 0.22, 16, 1, true]} />
-          <meshStandardMaterial
-            color="#7dd3fc"
-            emissive="#38bdf8"
-            emissiveIntensity={1}
-            transparent
-            opacity={0.55}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-        <mesh position={[0, 0.1, 0]} castShadow>
-          <sphereGeometry args={[0.19, 24, 18]} />
-          <ToyMaterial color="#3b82f6" />
-        </mesh>
-        <mesh position={[0, 0.5, 0]} scale={[1, 1.12, 0.92]} castShadow>
-          <sphereGeometry args={[0.32, 36, 28]} />
-          <ToyMaterial color="#ffffff" />
-        </mesh>
-        <mesh position={[0, 0.44, 0.22]} scale={[1, 1.2, 0.55]}>
-          <sphereGeometry args={[0.16, 24, 18]} />
-          <ToyMaterial color="#60a5fa" />
-        </mesh>
-        <Decal style={look.decal} accent={look.accent} />
-        <group ref={leftArm} position={[-0.36, 0.62, 0]}>
-          <mesh position={[0, -0.14, 0]} castShadow>
-            <capsuleGeometry args={[0.06, 0.2, 6, 12]} />
-            <ToyMaterial color="#ffffff" />
-          </mesh>
-          <mesh position={[0, -0.3, 0]}>
-            <sphereGeometry args={[0.075, 14, 14]} />
-            <ToyMaterial color="#3b82f6" />
-          </mesh>
-        </group>
-        <group ref={rightArm} position={[0.36, 0.62, 0]}>
-          <mesh position={[0, -0.14, 0]} castShadow>
-            <capsuleGeometry args={[0.06, 0.2, 6, 12]} />
-            <ToyMaterial color="#ffffff" />
-          </mesh>
-          <mesh position={[0, -0.3, 0]}>
-            <sphereGeometry args={[0.075, 14, 14]} />
-            <ToyMaterial color="#3b82f6" />
-          </mesh>
-        </group>
-        <group position={[0, 1.18, 0]}>
-          <RoundedBox args={[0.66, 0.5, 0.5]} radius={0.16} smoothness={8} castShadow>
-            <meshPhysicalMaterial color="#ffffff" roughness={0.3} clearcoat={0.8} clearcoatRoughness={0.2} />
-          </RoundedBox>
-          <RoundedBox args={[0.5, 0.34, 0.06]} radius={0.1} smoothness={6} position={[0, -0.01, 0.235]}>
-            <meshStandardMaterial color="#0b1220" roughness={0.35} />
-          </RoundedBox>
-          <mesh ref={leftEye} position={[-0.11, 0.03, 0.275]}>
-            <capsuleGeometry args={[0.032, 0.05, 6, 12]} />
-            <meshStandardMaterial color={look.eyeColor} emissive={look.eyeColor} emissiveIntensity={2} />
-          </mesh>
-          <mesh ref={rightEye} position={[0.11, 0.03, 0.275]}>
-            <capsuleGeometry args={[0.032, 0.05, 6, 12]} />
-            <meshStandardMaterial color={look.eyeColor} emissive={look.eyeColor} emissiveIntensity={2} />
-          </mesh>
-          <mesh ref={mouth} position={[0, -0.07, 0.275]} rotation={[0, 0, Math.PI]}>
-            <torusGeometry args={[0.055, 0.014, 10, 20, Math.PI]} />
-            <meshStandardMaterial color={look.eyeColor} emissive={look.eyeColor} emissiveIntensity={2} />
-          </mesh>
-          <mesh position={[-0.36, 0, 0]} rotation={[0, 0, Math.PI / 2]} scale={look.podSize}>
-            <cylinderGeometry args={[0.09, 0.09, 0.08, 18]} />
-            <ToyMaterial color={look.accent} />
-          </mesh>
-          <mesh position={[0.36, 0, 0]} rotation={[0, 0, Math.PI / 2]} scale={look.podSize}>
-            <cylinderGeometry args={[0.09, 0.09, 0.08, 18]} />
-            <ToyMaterial color={look.accent} />
-          </mesh>
-        </group>
-        <Antenna style={look.antenna} accent={look.accent} />
+        {kind === "robot" ? (
+          <RobotBody look={robotLook} refs={refs} />
+        ) : (
+          <HumanBody look={humanLook} refs={refs} />
+        )}
       </group>
       <Html position={[0, 2.15, 0]} center distanceFactor={12} occlude={false} zIndexRange={[10, 0]}>
         <div className="flex flex-col items-center pointer-events-none select-none" style={{ width: "150px" }}>
@@ -523,9 +743,10 @@ function RobotCharacter({
             {bubbleText}
           </div>
           <div
-            className="mt-0.5 rounded-full px-2 py-px text-[9px] font-bold text-white shadow-md"
+            className="mt-0.5 flex items-center gap-1 rounded-full px-2 py-px text-[9px] font-bold text-white shadow-md"
             style={{ backgroundColor: employee.color }}
           >
+            <span>{kind === "robot" ? "🤖" : "🙂"}</span>
             {employee.name}
           </div>
         </div>
@@ -1181,7 +1402,7 @@ function OfficeScene({ onSelect }: { onSelect: (sel: OfficeSelection) => void })
       {employees.map((e) => {
         const t = targets.get(e.id);
         if (!t) return null;
-        return <RobotCharacter key={e.id} employee={e} target={t} onSelect={onSelect} />;
+        return <Character key={e.id} employee={e} target={t} onSelect={onSelect} />;
       })}
 
       <OrbitControls
@@ -1202,7 +1423,7 @@ export default function Office3D({
   onSelect: (sel: OfficeSelection) => void;
 }) {
   return (
-    <div className="relative h-[600px] w-full overflow-hidden rounded-3xl ring-1 ring-slate-200 shadow-sm bg-gradient-to-b from-sky-100 to-orange-50">
+    <div className="relative h-[clamp(340px,56vh,560px)] w-full overflow-hidden rounded-3xl ring-1 ring-white/30 shadow-lg bg-gradient-to-b from-sky-100 to-orange-50">
       <Canvas
         shadows
         dpr={[1, 2]}

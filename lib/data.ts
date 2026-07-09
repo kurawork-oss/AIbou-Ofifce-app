@@ -1,9 +1,35 @@
 import type {
+  CompanyProfile,
   Department,
   DepartmentId,
   Employee,
   HirePayload,
 } from "./types";
+
+// 会社設定のデフォルト(⚙️会社設定からいつでも変更・商材=事業部を追加可能)
+export const DEFAULT_COMPANY: CompanyProfile = {
+  companyName: "AIbou株式会社",
+  products: [
+    {
+      id: "prod-default",
+      name: "AI業務自動化ツール",
+      description: "中小企業向けのバックオフィス自動化SaaS",
+      target: "b2b",
+    },
+  ],
+};
+
+// B2C営業のターゲット(個人名)
+export const PERSON_NAMES = [
+  "山田 太郎",
+  "佐々木 花子",
+  "中村 健一",
+  "小川 美優",
+  "藤田 大地",
+  "松本 さくら",
+  "井上 隆",
+  "岡田 玲奈",
+];
 
 export const DEPARTMENTS: Record<DepartmentId, Department> = {
   sales: {
@@ -160,6 +186,7 @@ export const SEED_EMPLOYEES: Omit<
 >[] = [
   {
     id: "emp-sato",
+    avatar: "human",
     name: "佐藤 蓮",
     role: "営業マネージャー",
     department: "sales",
@@ -171,6 +198,7 @@ export const SEED_EMPLOYEES: Omit<
   },
   {
     id: "emp-takahashi",
+    avatar: "human",
     name: "高橋 美咲",
     role: "アポインター",
     department: "sales",
@@ -182,6 +210,7 @@ export const SEED_EMPLOYEES: Omit<
   },
   {
     id: "emp-suzuki",
+    avatar: "robot",
     name: "鈴木 葵",
     role: "事務リーダー",
     department: "admin",
@@ -193,6 +222,7 @@ export const SEED_EMPLOYEES: Omit<
   },
   {
     id: "emp-tanaka",
+    avatar: "human",
     name: "田中 陽菜",
     role: "事務アシスタント",
     department: "admin",
@@ -204,6 +234,7 @@ export const SEED_EMPLOYEES: Omit<
   },
   {
     id: "emp-ito",
+    avatar: "robot",
     name: "伊藤 大和",
     role: "マーケリーダー",
     department: "marketing",
@@ -215,6 +246,7 @@ export const SEED_EMPLOYEES: Omit<
   },
   {
     id: "emp-watanabe",
+    avatar: "human",
     name: "渡辺 結衣",
     role: "コンテンツ担当",
     department: "marketing",
@@ -230,6 +262,7 @@ export const SEED_EMPLOYEES: Omit<
 export const HIRE_CANDIDATES: HirePayload[] = [
   {
     name: "山本 蒼真",
+    avatar: "robot",
     role: "インサイドセールス",
     department: "sales",
     emoji: "🧑‍🚀",
@@ -240,6 +273,7 @@ export const HIRE_CANDIDATES: HirePayload[] = [
   },
   {
     name: "小林 芽依",
+    avatar: "human",
     role: "カスタマーサポート",
     department: "admin",
     emoji: "🧑‍🔧",
@@ -250,6 +284,7 @@ export const HIRE_CANDIDATES: HirePayload[] = [
   },
   {
     name: "加藤 悠",
+    avatar: "robot",
     role: "動画クリエイター",
     department: "marketing",
     emoji: "🎬",

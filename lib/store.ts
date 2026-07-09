@@ -6,18 +6,22 @@ import type {
   ActivityEntry,
   ApprovalRequest,
   Artifact,
+  CompanyProfile,
   Employee,
   EmployeeTask,
   Kpi,
   MeetingMinutes,
+  SalesTargetType,
 } from "./types";
 import {
   COMPANY_NAMES,
+  DEFAULT_COMPANY,
   DEPARTMENTS,
   EXPENSE_REQUESTS,
   GAMES,
   HIRE_CANDIDATES,
   MEETING_AGENDAS,
+  PERSON_NAMES,
   SEED_EMPLOYEES,
   TASK_TEMPLATES,
   TOOL_REQUESTS,
@@ -47,11 +51,31 @@ function randInt(min: number, max: number): number {
   return min + Math.floor(Math.random() * (max - min + 1));
 }
 
-function makeTask(tpl: TaskTemplate): EmployeeTask {
+// 営業対象(法人/個人)に応じたターゲット名
+function pickTargetName(target: SalesTargetType): string {
+  const b2c = target === "b2c" || (target === "both" && Math.random() < 0.5);
+  return b2c ? `${pick(PERSON_NAMES)}様` : pick(COMPANY_NAMES);
+}
+
+function pickProduct(company: CompanyProfile) {
+  return pick(company.products.length > 0 ? company.products : DEFAULT_COMPANY.products);
+}
+
+// 会社設定(商材・営業対象)を反映してタスクを生成
+function makeTask(tpl: TaskTemplate, company: CompanyProfile): EmployeeTask {
+  const product = pickProduct(company);
+  let detail = pick(tpl.details);
+  if (tpl.kind === "call") {
+    detail = `${pickTargetName(product.target)}へ架電・「${product.name}」のアポ打診`;
+  } else if (tpl.kind === "salesMail") {
+    detail = `${pickTargetName(product.target)}へ「${product.name}」の提案メールを作成・送信`;
+  } else if (tpl.kind === "proposal" || tpl.kind === "research" || tpl.kind === "leadList") {
+    detail = `「${product.name}」: ${detail}`;
+  }
   return {
     kind: tpl.kind,
     label: tpl.label,
-    detail: pick(tpl.details),
+    detail,
     progress: 0,
     total: randInt(tpl.ticks[0], tpl.ticks[1]),
   };
@@ -79,6 +103,7 @@ const initialKpi: Kpi = {
 };
 
 interface CompanyState {
+  company: CompanyProfile;
   employees: Employee[];
   approvals: ApprovalRequest[];
   activity: ActivityEntry[];
@@ -99,6 +124,7 @@ interface CompanyState {
   ) => void;
   updateEmployee: (id: string, patch: Partial<Employee>) => void;
   startMeetingNow: () => void;
+  updateCompany: (profile: CompanyProfile) => void;
   resetCompany: () => void;
 }
 
@@ -168,8 +194,12 @@ function makeArtifact(
 function applyTaskEffect(
   emp: Employee,
   task: EmployeeTask,
-  kpi: Kpi
+  kpi: Kpi,
+  company: CompanyProfile
 ): { message: string; artifact?: Artifact } {
+  // タスク詳細に含まれる商材を特定(なければ先頭の商材)
+  const products = company.products.length > 0 ? company.products : DEFAULT_COMPANY.products;
+  const product = products.find((p) => task.detail.includes(p.name)) ?? products[0];
   switch (task.kind) {
     case "research":
       kpi.insights += 1;
@@ -210,19 +240,22 @@ function applyTaskEffect(
         gained = 2;
       }
       kpi.leadLists += gained;
-      const picks = [...COMPANY_NAMES].sort(() => Math.random() - 0.5).slice(0, 4);
+      const b2c = product.target === "b2c";
+      const pool = b2c ? PERSON_NAMES : COMPANY_NAMES;
+      const picks = [...pool].sort(() => Math.random() - 0.5).slice(0, 4);
       const priorities = ["高", "中", "高", "低"];
       return {
         message: `📋 ${task.detail} を完了。営業リスト +${gained}(在庫: ${kpi.leadLists})`,
         artifact: makeArtifact(
           emp,
           "spreadsheet",
-          `営業リスト ${stamp()}`,
-          `${task.detail}。リサーチ知見${gained === 2 ? "を反映した高精度" : "なしの標準"}リスト。`,
+          `営業リスト【${product.name}】 ${stamp()}`,
+          `${task.detail}。対象: ${b2c ? "個人(B2C)" : "法人(B2B)"}。リサーチ知見${gained === 2 ? "を反映した高精度" : "なしの標準"}リスト。`,
           [
-            ["社名", "優先度", "状態", "メモ"],
+            [b2c ? "氏名" : "社名", "商材", "優先度", "状態", "メモ"],
             ...picks.map((c, i) => [
-              c,
+              b2c ? `${c}様` : c,
+              product.name,
               priorities[i],
               "未接触",
               i === 0 ? "ニーズ強め・最優先" : "リサーチ知見より抽出",
@@ -333,6 +366,7 @@ async function enhanceMinutes(
 export const useCompanyStore = create<CompanyState>()(
   persist(
     (set, get) => ({
+      company: DEFAULT_COMPANY,
       employees: seedEmployees(),
       approvals: [],
       activity: [],
@@ -357,6 +391,7 @@ export const useCompanyStore = create<CompanyState>()(
         const usedExpenseRequests = s.usedExpenseRequests.slice();
         const proposedHires = s.proposedHires.slice();
         let artifacts = s.artifacts;
+        const company = s.company ?? DEFAULT_COMPANY;
 
         let employees = s.employees.map((e) => ({ ...e }));
 
@@ -476,7 +511,7 @@ export const useCompanyStore = create<CompanyState>()(
             if (tpl) {
               emp.status = "working";
               emp.statusLabel = tpl.statusLabel;
-              emp.currentTask = makeTask(tpl);
+              emp.currentTask = makeTask(tpl, company);
               activity = log(
                 activity,
                 emp.id,
@@ -493,7 +528,7 @@ export const useCompanyStore = create<CompanyState>()(
             if (tpl) {
               emp.status = "working";
               emp.statusLabel = tpl.statusLabel;
-              emp.currentTask = makeTask(tpl);
+              emp.currentTask = makeTask(tpl, company);
             } else {
               emp.status = "break";
               const game = pick(GAMES);
@@ -511,7 +546,7 @@ export const useCompanyStore = create<CompanyState>()(
           // タスク進行
           emp.currentTask.progress += 1;
           if (emp.currentTask.progress >= emp.currentTask.total) {
-            const result = applyTaskEffect(emp, emp.currentTask, kpi);
+            const result = applyTaskEffect(emp, emp.currentTask, kpi, company);
             activity = log(activity, emp.id, result.message, "work");
             if (result.artifact) {
               artifacts = [result.artifact, ...artifacts].slice(0, 80);
@@ -672,6 +707,7 @@ export const useCompanyStore = create<CompanyState>()(
           const newEmp: Employee = {
             id: uid(),
             name: h.name,
+            avatar: h.avatar,
             role: h.role,
             department: h.department,
             status: "working",
@@ -726,6 +762,10 @@ export const useCompanyStore = create<CompanyState>()(
         set({ lastMeetingTick: get().tickCount - MEETING_INTERVAL });
       },
 
+      updateCompany: (profile) => {
+        set({ company: profile });
+      },
+
       resetCompany: () => {
         set({
           employees: seedEmployees(),
@@ -744,12 +784,15 @@ export const useCompanyStore = create<CompanyState>()(
     }),
     {
       name: "aibou-office-v1",
-      version: 2,
+      version: 3,
       skipHydration: true,
       migrate: (persisted, version) => {
         const state = persisted as Partial<CompanyState>;
         if (version < 2) {
           state.artifacts = state.artifacts ?? [];
+        }
+        if (version < 3) {
+          state.company = state.company ?? DEFAULT_COMPANY;
         }
         return state as CompanyState;
       },

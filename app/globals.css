@@ -5,6 +5,96 @@ body {
     Meiryo, system-ui, -apple-system, sans-serif;
 }
 
+/* ===== 銀河の背景 ===== */
+.galaxy-body {
+  background: radial-gradient(ellipse at 25% -10%, #2c3172 0%, #171c45 42%, #0a0d26 100%);
+  background-attachment: fixed;
+}
+
+.galaxy-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.nebula {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 45% 30% at 78% 18%, rgba(139, 92, 246, 0.16), transparent 70%),
+    radial-gradient(ellipse 40% 28% at 15% 65%, rgba(56, 189, 248, 0.12), transparent 70%),
+    radial-gradient(ellipse 30% 22% at 55% 85%, rgba(244, 114, 182, 0.1), transparent 70%);
+}
+
+.stars-layer {
+  position: absolute;
+  inset: -100px;
+  background-repeat: repeat;
+}
+
+.stars-sm {
+  background-image:
+    radial-gradient(1px 1px at 25px 35px, rgba(255, 255, 255, 0.9), transparent),
+    radial-gradient(1px 1px at 120px 90px, rgba(255, 255, 255, 0.7), transparent),
+    radial-gradient(1px 1px at 200px 40px, rgba(255, 255, 255, 0.8), transparent),
+    radial-gradient(1px 1px at 70px 160px, rgba(190, 220, 255, 0.8), transparent),
+    radial-gradient(1px 1px at 170px 200px, rgba(255, 255, 255, 0.6), transparent),
+    radial-gradient(1px 1px at 240px 130px, rgba(255, 230, 200, 0.7), transparent);
+  background-size: 280px 240px;
+  animation: twinkle 4s ease-in-out infinite;
+}
+
+.stars-md {
+  background-image:
+    radial-gradient(1.6px 1.6px at 60px 60px, rgba(255, 255, 255, 0.95), transparent),
+    radial-gradient(1.4px 1.4px at 300px 180px, rgba(180, 215, 255, 0.9), transparent),
+    radial-gradient(1.8px 1.8px at 200px 300px, rgba(255, 255, 255, 0.85), transparent),
+    radial-gradient(1.4px 1.4px at 380px 80px, rgba(255, 220, 180, 0.85), transparent);
+  background-size: 440px 380px;
+  animation: twinkle 6s ease-in-out infinite reverse;
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.shooting-star {
+  position: absolute;
+  width: 140px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0));
+  border-radius: 999px;
+  transform: rotate(-30deg);
+  opacity: 0;
+  animation: shoot 14s linear infinite;
+}
+
+@keyframes shoot {
+  0% {
+    opacity: 0;
+    transform: rotate(-30deg) translateX(0);
+  }
+  2% {
+    opacity: 1;
+  }
+  6% {
+    opacity: 0;
+    transform: rotate(-30deg) translateX(-340px);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(-30deg) translateX(-340px);
+  }
+}
+
 /* 社員アバターがゆったり揺れるアニメーション */
 @keyframes bob {
   0%,
