@@ -90,7 +90,7 @@ function RequestCard({ request }: { request: ApprovalRequest }) {
 
   return (
     <div
-      className={`rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 ${
+      className={`rounded-2xl bg-white/95 p-4 shadow-lg ring-1 ring-white/40 backdrop-blur ${
         !pending ? "opacity-70" : ""
       }`}
     >
@@ -172,17 +172,21 @@ export default function ApprovalBox() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <section>
-        <h2 className="font-bold text-base text-slate-800 mb-3">
-          🔔 代表への確認事項{" "}
+        <h2 className="flex items-center gap-2 font-bold text-base text-white drop-shadow mb-3">
+          <span>🔔 代表への確認事項</span>
           {pending.length > 0 && (
-            <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">
               {pending.length}
             </span>
           )}
         </h2>
         {pending.length === 0 ? (
-          <div className="rounded-2xl bg-white p-8 text-center text-sm text-slate-400 ring-1 ring-slate-200">
-            未処理の申請はありません。AI社員が働きながら、必要になったら申請を上げてきます。
+          <div className="rounded-2xl bg-white/95 p-10 text-center ring-1 ring-white/40 shadow-lg backdrop-blur">
+            <p className="text-3xl mb-2">📭</p>
+            <p className="text-sm text-slate-500">未処理の申請はありません。</p>
+            <p className="text-[11px] text-slate-400 mt-1">
+              AI社員が働きながら、必要になったら申請を上げてきます。
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -195,9 +199,7 @@ export default function ApprovalBox() {
 
       {decided.length > 0 && (
         <section>
-          <h2 className="font-bold text-sm text-slate-500 mb-3">
-            📁 対応済みの履歴
-          </h2>
+          <h2 className="font-bold text-sm text-indigo-200/80 mb-3">📁 対応済みの履歴</h2>
           <div className="space-y-3">
             {decided.map((r) => (
               <RequestCard key={r.id} request={r} />

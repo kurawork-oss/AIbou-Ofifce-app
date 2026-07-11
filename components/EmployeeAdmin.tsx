@@ -158,8 +158,8 @@ export default function EmployeeAdmin() {
                       >
                         {e.emoji}
                       </span>
-                      <div>
-                        <p className="font-bold text-slate-800">
+                      <div className="min-w-[190px]">
+                        <p className="font-bold text-slate-800 whitespace-nowrap">
                           {e.avatar === "human" ? "🙂" : "🤖"} {e.name}
                         </p>
                         <p className="text-[10px] text-slate-400">{e.bio}</p>
@@ -167,14 +167,14 @@ export default function EmployeeAdmin() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 whitespace-nowrap">
                       {divName(e.divisionId)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{e.role}</td>
+                  <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{e.role}</td>
                   <td className="px-4 py-3">
                     <span
-                      className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white"
+                      className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white whitespace-nowrap"
                       style={{ backgroundColor: dept.color }}
                     >
                       {dept.name}
@@ -182,7 +182,7 @@ export default function EmployeeAdmin() {
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${STATUS_STYLE[e.status]}`}
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap ${STATUS_STYLE[e.status]}`}
                     >
                       {e.statusLabel}
                     </span>

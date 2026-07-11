@@ -29,12 +29,14 @@ function KpiBar() {
       {items.map((i) => (
         <div
           key={i.label}
-          className="flex items-center gap-2 rounded-xl bg-white/95 px-3 py-1.5 shadow-md ring-1 ring-white/40 shrink-0 backdrop-blur"
+          className="flex items-center gap-2 rounded-2xl bg-white/10 px-3 py-2 ring-1 ring-white/15 shrink-0 backdrop-blur-md hover:bg-white/15 transition"
         >
-          <span className="text-sm">{i.icon}</span>
+          <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-white/15 text-sm shrink-0">
+            {i.icon}
+          </span>
           <div>
-            <p className="text-[9px] text-slate-400 leading-none">{i.label}</p>
-            <p className="text-sm font-bold text-slate-800 leading-tight">
+            <p className="text-[9px] text-indigo-200/70 leading-none whitespace-nowrap">{i.label}</p>
+            <p className="text-base font-extrabold text-white leading-tight tabular-nums">
               {i.value}
             </p>
           </div>
@@ -79,20 +81,25 @@ export default function Home() {
       {showSettings && <CompanySettings onClose={() => setShowSettings(false)} />}
       <header className="mb-3">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-2.5">
-          <div>
-            <h1 className="text-xl font-extrabold tracking-tight text-white drop-shadow">
-              {hydrated ? (company?.companyName ?? "AIbou Office") : "AIbou Office"}
-            </h1>
-            <p className="text-[11px] text-indigo-200/80">
-              AI社員だけで回るバーチャルカンパニー — あなたは代表として承認するだけ
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-indigo-500 text-xl shadow-lg ring-1 ring-white/30">
+              🏢
+            </div>
+            <div>
+              <h1 className="text-xl font-extrabold tracking-tight text-white drop-shadow leading-tight">
+                {hydrated ? (company?.companyName ?? "AIbou Office") : "AIbou Office"}
+              </h1>
+              <p className="text-[11px] text-indigo-200/80">
+                AI社員だけで回るバーチャルカンパニー — あなたは承認するだけ
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <span
-              className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
+              className={`rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ${
                 isSupabaseConfigured()
-                  ? "bg-emerald-100 text-emerald-700"
-                  : "bg-white/15 text-indigo-100"
+                  ? "bg-emerald-400/20 text-emerald-200 ring-emerald-300/30"
+                  : "bg-white/10 text-indigo-100 ring-white/15"
               }`}
               title={
                 isSupabaseConfigured()
@@ -104,7 +111,7 @@ export default function Home() {
             </span>
             <button
               onClick={() => setShowSettings(true)}
-              className="rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-bold text-slate-700 shadow hover:bg-white transition"
+              className="rounded-full bg-white px-3.5 py-1.5 text-[11px] font-bold text-slate-800 shadow-lg hover:shadow-xl hover:-translate-y-px transition"
             >
               ⚙️ 会社設定
             </button>
@@ -118,9 +125,9 @@ export default function Home() {
                   resetCompany();
                 }
               }}
-              className="rounded-full px-3 py-1.5 text-[11px] text-indigo-200/70 ring-1 ring-white/20 hover:bg-white/10 hover:text-white transition"
+              className="rounded-full px-3 py-1.5 text-[11px] text-indigo-200/70 ring-1 ring-white/15 hover:bg-white/10 hover:text-white transition"
             >
-              会社をリセット
+              リセット
             </button>
           </div>
         </div>

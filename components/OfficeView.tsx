@@ -229,15 +229,15 @@ function DivisionKpiRow({ divisionId }: { divisionId: string }) {
     { label: "戦略Lv", value: kpi.strategies, icon: "✨" },
   ];
   return (
-    <div className="flex gap-1.5 overflow-x-auto">
+    <div className="flex gap-1.5 overflow-x-auto pb-0.5">
       {items.map((i) => (
         <div
           key={i.label}
-          className="flex items-center gap-1 rounded-lg bg-white/90 px-2 py-1 shadow-sm ring-1 ring-white/40 shrink-0"
+          className="flex items-center gap-1.5 rounded-xl bg-white/10 px-2.5 py-1 ring-1 ring-white/15 shrink-0 backdrop-blur-md"
         >
           <span className="text-[11px]">{i.icon}</span>
-          <span className="text-[9px] text-slate-400">{i.label}</span>
-          <span className="text-xs font-bold text-slate-800">{i.value}</span>
+          <span className="text-[9px] text-indigo-200/70 whitespace-nowrap">{i.label}</span>
+          <span className="text-xs font-bold text-white tabular-nums">{i.value}</span>
         </div>
       ))}
     </div>
